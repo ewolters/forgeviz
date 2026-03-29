@@ -71,7 +71,7 @@ def pareto_of_effects(
             sig_line = t_crit * se_effect
             spec.add_reference_line(sig_line, color=STATUS_RED, dash="dashed", label=f"Significance (α={alpha})")
         except ImportError:
-            pass
+            pass  # scipy not available — significance line omitted (forgeviz has zero deps)
 
     return spec
 

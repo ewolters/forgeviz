@@ -22,8 +22,6 @@ def to_plotly(spec: ChartSpec) -> dict:
 
     # Convert traces
     for i, trace in enumerate(spec.traces):
-        t = trace if isinstance(trace, dict) else trace.__dict__ if hasattr(trace, '__dict__') else {}
-
         if isinstance(trace, dict):
             # Box plot or other dict-based traces
             traces.append(trace)

@@ -1,7 +1,5 @@
 """Tests for OLR-001 knowledge health visualizations."""
 
-import pytest
-
 from forgeviz.charts.knowledge import (
     ddmrp_buffer_status,
     detection_ladder,

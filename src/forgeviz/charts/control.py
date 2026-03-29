@@ -5,8 +5,8 @@ Takes forgespc ControlChartResult → ForgeViz ChartSpec.
 
 from __future__ import annotations
 
-from ..core.colors import STATUS_AMBER, STATUS_DIM, STATUS_GREEN, STATUS_RED, get_color
-from ..core.spec import ChartSpec, Trace
+from ..core.colors import STATUS_AMBER, STATUS_GREEN, STATUS_RED, get_color
+from ..core.spec import ChartSpec
 
 
 def control_chart(
@@ -46,8 +46,6 @@ def control_chart(
 
     # OOC points highlighted
     if ooc:
-        ooc_x = [i + 1 for i in ooc]
-        ooc_y = [data_points[i] for i in ooc if i < len(data_points)]
         spec.add_marker(list(ooc), color=STATUS_RED, size=8, symbol="circle", label="Out of Control")
 
     # Control limits
@@ -88,9 +86,29 @@ def from_spc_result(result, title: str = "") -> ChartSpec:
         lsl=result.limits.lsl,
     )
 
-    # Add secondary chart if present (e.g., R chart for X-bar/R)
-    if result.secondary_chart:
-        # Secondary chart would be a separate ChartSpec in practice
-        pass
-
     return spec
+
+
+def from_spc_result_pair(result, title: str = "") -> list[ChartSpec]:
+    """Convert a forgespc ControlChartResult with secondary chart to a pair of ChartSpecs.
+
+    Returns [primary_chart, secondary_chart] for composition via ForgeViz.compose().
+    """
+    specs = [from_spc_result(result, title)]
+
+    if result.secondary_chart:
+        sec = result.secondary_chart
+        sec_ooc = [p["index"] for p in sec.out_of_control] if sec.out_of_control else []
+        sec_spec = control_chart(
+            data_points=sec.data_points,
+            ucl=sec.limits.ucl,
+            cl=sec.limits.cl,
+            lcl=sec.limits.lcl,
+            ooc_indices=sec_ooc,
+            title=f"{sec.chart_type} Chart",
+            chart_type_label=sec.chart_type,
+        )
+        sec_spec.height = 200  # secondary is shorter
+        specs.append(sec_spec)
+
+    return specs

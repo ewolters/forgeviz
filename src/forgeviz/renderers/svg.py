@@ -8,7 +8,6 @@ Converts ChartSpec → SVG string. Used for:
 
 from __future__ import annotations
 
-import math
 from xml.sax.saxutils import escape
 
 from ..core.colors import get_theme

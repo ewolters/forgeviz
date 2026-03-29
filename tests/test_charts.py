@@ -6,7 +6,7 @@ import pytest
 
 from forgeviz.core.spec import ChartSpec, render
 from forgeviz.charts.control import control_chart, from_spc_result
-from forgeviz.charts.distribution import box_plot, histogram
+from forgeviz.charts.distribution import histogram
 from forgeviz.charts.effects import main_effects_plot, normal_probability_plot, pareto_of_effects
 from forgeviz.charts.scatter import pareto, scatter
 from forgeviz.charts.time_series import capacity_loading, forecast_vs_actual, inventory_position
