@@ -17,3 +17,5 @@ Usage:
 __version__ = "0.1.0"
 
 from .core.spec import ChartSpec, render
+
+__all__ = ["ChartSpec", "render", "__version__"]

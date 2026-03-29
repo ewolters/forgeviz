@@ -426,3 +426,292 @@
     };
 
 })(typeof window !== 'undefined' ? window : this);
+
+// ========================================================================
+// PHASE 2 INNOVATIONS — Beyond Plotly / Tableau
+// ========================================================================
+
+(function(FV) {
+    'use strict';
+
+    // ────────────────────────────────────────────────────────────────────
+    // Linked Brushing — select range on one chart, all charts highlight
+    // ────────────────────────────────────────────────────────────────────
+
+    const _linkedGroups = {};
+
+    FV.linkCharts = function(groupName, containers) {
+        _linkedGroups[groupName] = containers;
+    };
+
+    FV.brushRange = function(groupName, xMin, xMax) {
+        const containers = _linkedGroups[groupName] || [];
+        containers.forEach(function(c) {
+            c.dispatchEvent(new CustomEvent('forgeviz:brush', {
+                detail: { xMin: xMin, xMax: xMax, group: groupName },
+                bubbles: true,
+            }));
+            // Highlight points within range
+            const circles = c.querySelectorAll('circle[data-idx]');
+            circles.forEach(function(el) {
+                const x = parseFloat(el.getAttribute('cx'));
+                // Dim points outside range
+                if (x < xMin || x > xMax) {
+                    el.setAttribute('opacity', '0.15');
+                } else {
+                    el.setAttribute('opacity', '1');
+                }
+            });
+        });
+    };
+
+    FV.clearBrush = function(groupName) {
+        const containers = _linkedGroups[groupName] || [];
+        containers.forEach(function(c) {
+            c.querySelectorAll('circle[data-idx]').forEach(function(el) {
+                el.setAttribute('opacity', '1');
+            });
+        });
+    };
+
+    // ────────────────────────────────────────────────────────────────────
+    // Annotation Mode — click to add notes directly on chart points
+    // ────────────────────────────────────────────────────────────────────
+
+    FV.enableAnnotation = function(container, callback) {
+        container._annotationMode = true;
+        container._annotationCallback = callback;
+
+        container.addEventListener('forgeviz:click', function(e) {
+            if (!container._annotationMode) return;
+            const detail = e.detail;
+
+            // Create input overlay
+            const input = document.createElement('input');
+            input.type = 'text';
+            input.placeholder = 'Add note...';
+            input.style.cssText = 'position:absolute;background:#1a1a2e;color:#e8efe8;border:1px solid #4a9f6e;padding:4px 8px;border-radius:4px;font-size:11px;font-family:Inter,system-ui;z-index:1001;width:200px;';
+
+            const rect = container.getBoundingClientRect();
+            input.style.left = (e.clientX || e.pageX) - rect.left + 'px';
+            input.style.top = (e.clientY || e.pageY) - rect.top + 'px';
+
+            container.appendChild(input);
+            input.focus();
+
+            input.addEventListener('keydown', function(ke) {
+                if (ke.key === 'Enter' && input.value.trim()) {
+                    const annotation = {
+                        x: detail.x,
+                        y: detail.y,
+                        index: detail.index,
+                        text: input.value.trim(),
+                        timestamp: new Date().toISOString(),
+                    };
+                    // Add visual annotation to SVG
+                    const svg = container.querySelector('svg');
+                    if (svg) {
+                        const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+                        const bg = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+                        const txt = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                        txt.textContent = input.value.trim();
+                        txt.setAttribute('font-size', '10');
+                        txt.setAttribute('fill', '#e8c547');
+                        txt.setAttribute('font-family', 'Inter, system-ui');
+                        // Position near the click point
+                        const cx = parseFloat(input.style.left);
+                        const cy = parseFloat(input.style.top) - 16;
+                        txt.setAttribute('x', cx);
+                        txt.setAttribute('y', cy);
+                        bg.setAttribute('x', cx - 2);
+                        bg.setAttribute('y', cy - 10);
+                        bg.setAttribute('width', input.value.length * 6 + 8);
+                        bg.setAttribute('height', 14);
+                        bg.setAttribute('fill', 'rgba(0,0,0,0.7)');
+                        bg.setAttribute('rx', '3');
+                        g.appendChild(bg);
+                        g.appendChild(txt);
+                        svg.appendChild(g);
+                    }
+                    container.removeChild(input);
+                    if (container._annotationCallback) {
+                        container._annotationCallback(annotation);
+                    }
+                } else if (ke.key === 'Escape') {
+                    container.removeChild(input);
+                }
+            });
+            input.addEventListener('blur', function() {
+                if (input.parentNode) container.removeChild(input);
+            });
+        });
+    };
+
+    FV.disableAnnotation = function(container) {
+        container._annotationMode = false;
+    };
+
+    // ────────────────────────────────────────────────────────────────────
+    // Threshold Dragging — drag reference lines to explore what-if
+    // ────────────────────────────────────────────────────────────────────
+
+    FV.enableThresholdDrag = function(container, callback) {
+        const svg = container.querySelector('svg');
+        if (!svg) return;
+
+        // Find reference lines (horizontal lines that span full width)
+        const lines = svg.querySelectorAll('line');
+        lines.forEach(function(line) {
+            const x1 = parseFloat(line.getAttribute('x1'));
+            const x2 = parseFloat(line.getAttribute('x2'));
+            const dash = line.getAttribute('stroke-dasharray');
+
+            // Reference lines span the full plot width and have dashes
+            if (dash && (x2 - x1) > 100) {
+                line.style.cursor = 'ns-resize';
+                let dragging = false;
+                let startY = 0;
+                let origY = 0;
+
+                line.addEventListener('mousedown', function(e) {
+                    dragging = true;
+                    startY = e.clientY;
+                    origY = parseFloat(line.getAttribute('y1'));
+                    e.preventDefault();
+                });
+
+                document.addEventListener('mousemove', function(e) {
+                    if (!dragging) return;
+                    const dy = e.clientY - startY;
+                    const newY = origY + dy;
+                    line.setAttribute('y1', newY);
+                    line.setAttribute('y2', newY);
+
+                    // Find associated label text
+                    const nextEl = line.nextElementSibling;
+                    if (nextEl && nextEl.tagName === 'text') {
+                        nextEl.setAttribute('y', newY + 4);
+                    }
+                });
+
+                document.addEventListener('mouseup', function() {
+                    if (!dragging) return;
+                    dragging = false;
+                    // Compute new value from pixel position
+                    // Emit event with new threshold value
+                    const newY = parseFloat(line.getAttribute('y1'));
+                    if (callback) {
+                        callback({
+                            originalLabel: line.nextElementSibling ? line.nextElementSibling.textContent.trim() : '',
+                            pixelY: newY,
+                            color: line.getAttribute('stroke'),
+                        });
+                    }
+                    container.dispatchEvent(new CustomEvent('forgeviz:threshold-change', {
+                        detail: { pixelY: newY, color: line.getAttribute('stroke') },
+                        bubbles: true,
+                    }));
+                });
+            }
+        });
+    };
+
+    // ────────────────────────────────────────────────────────────────────
+    // Chart Composition — stack charts with shared x-axis, sync cursors
+    // ────────────────────────────────────────────────────────────────────
+
+    FV.compose = function(container, specs, options) {
+        options = options || {};
+        const gap = options.gap || 8;
+        const totalHeight = specs.reduce(function(sum, s) { return sum + (s.height || 300); }, 0) + gap * (specs.length - 1);
+
+        container.innerHTML = '';
+        container.style.display = 'flex';
+        container.style.flexDirection = 'column';
+        container.style.gap = gap + 'px';
+
+        const instances = [];
+        specs.forEach(function(spec, i) {
+            const wrapper = document.createElement('div');
+            wrapper.style.width = '100%';
+            wrapper.style.height = (spec.height || 300) + 'px';
+            container.appendChild(wrapper);
+
+            // Hide x-axis label on all but last
+            if (i < specs.length - 1) {
+                spec = Object.assign({}, spec);
+                spec.x_axis = Object.assign({}, spec.x_axis || {});
+                spec.x_axis.label = '';
+            }
+
+            const inst = FV.render(wrapper, spec);
+            instances.push(inst);
+        });
+
+        // Sync cursor crosshair across all charts
+        container.addEventListener('mousemove', function(e) {
+            const rect = container.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            // Draw vertical cursor line on all SVGs
+            instances.forEach(function(inst) {
+                let cursor = inst.svg.querySelector('.fv-cursor');
+                if (!cursor) {
+                    cursor = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                    cursor.classList.add('fv-cursor');
+                    cursor.setAttribute('stroke', 'rgba(255,255,255,0.3)');
+                    cursor.setAttribute('stroke-width', '1');
+                    cursor.setAttribute('stroke-dasharray', '4,4');
+                    cursor.setAttribute('y1', '0');
+                    cursor.setAttribute('y2', inst.svg.getAttribute('height'));
+                    inst.svg.appendChild(cursor);
+                }
+                cursor.setAttribute('x1', x);
+                cursor.setAttribute('x2', x);
+                cursor.style.display = '';
+            });
+        });
+
+        container.addEventListener('mouseleave', function() {
+            instances.forEach(function(inst) {
+                const cursor = inst.svg.querySelector('.fv-cursor');
+                if (cursor) cursor.style.display = 'none';
+            });
+        });
+
+        return instances;
+    };
+
+    // ────────────────────────────────────────────────────────────────────
+    // Filter Chips — click category to filter all charts
+    // ────────────────────────────────────────────────────────────────────
+
+    FV.addFilterChips = function(container, categories, onFilter) {
+        const chipBar = document.createElement('div');
+        chipBar.style.cssText = 'display:flex;gap:4px;padding:4px 0;flex-wrap:wrap;';
+
+        const activeFilters = new Set(categories);
+
+        categories.forEach(function(cat) {
+            const chip = document.createElement('button');
+            chip.textContent = cat;
+            chip.style.cssText = 'padding:2px 8px;border-radius:12px;border:1px solid rgba(255,255,255,0.2);background:rgba(74,159,110,0.15);color:#4a9f6e;font-size:10px;cursor:pointer;font-family:Inter,system-ui;transition:opacity 0.15s;';
+            chip.addEventListener('click', function() {
+                if (activeFilters.has(cat)) {
+                    activeFilters.delete(cat);
+                    chip.style.opacity = '0.3';
+                    chip.style.background = 'transparent';
+                } else {
+                    activeFilters.add(cat);
+                    chip.style.opacity = '1';
+                    chip.style.background = 'rgba(74,159,110,0.15)';
+                }
+                if (onFilter) onFilter(Array.from(activeFilters));
+            });
+            chipBar.appendChild(chip);
+        });
+
+        container.insertBefore(chipBar, container.firstChild);
+        return chipBar;
+    };
+
+})(ForgeViz);

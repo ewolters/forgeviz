@@ -1,5 +1,8 @@
+README.md
 pyproject.toml
 src/forgeviz/__init__.py
+src/forgeviz/calibration.py
+src/forgeviz/py.typed
 src/forgeviz.egg-info/PKG-INFO
 src/forgeviz.egg-info/SOURCES.txt
 src/forgeviz.egg-info/dependency_links.txt
@@ -9,6 +12,7 @@ src/forgeviz/charts/__init__.py
 src/forgeviz/charts/control.py
 src/forgeviz/charts/distribution.py
 src/forgeviz/charts/effects.py
+src/forgeviz/charts/knowledge.py
 src/forgeviz/charts/scatter.py
 src/forgeviz/charts/time_series.py
 src/forgeviz/core/__init__.py
@@ -20,3 +24,4 @@ src/forgeviz/renderers/svg.py
 src/forgeviz/renderers/vegalite.py
 src/forgeviz/themes/__init__.py
 tests/test_charts.py
+tests/test_knowledge.py
