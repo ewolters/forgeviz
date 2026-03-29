@@ -1,0 +1,32 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "forgeviz"
+version = "0.1.0"
+description = "Zero-dependency data visualization — Python spec + vanilla JS renderer"
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.10"
+authors = [{name = "Eric Wolters", email = "eric.wolters@svend.ai"}]
+
+# ZERO DEPENDENCIES. Pure Python stdlib.
+dependencies = []
+
+[project.optional-dependencies]
+png = [
+    # cairosvg for server-side PNG rendering from SVG
+    # ABSORB: skip PNG, use SVG everywhere
+    "cairosvg>=2.7",
+]
+dev = ["pytest>=7.0"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+forgeviz = ["../js/*.js"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

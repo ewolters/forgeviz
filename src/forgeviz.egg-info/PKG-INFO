@@ -1,0 +1,12 @@
+Metadata-Version: 2.4
+Name: forgeviz
+Version: 0.1.0
+Summary: Zero-dependency data visualization — Python spec + vanilla JS renderer
+Author-email: Eric Wolters <eric.wolters@svend.ai>
+License: MIT
+Requires-Python: >=3.10
+Description-Content-Type: text/markdown
+Provides-Extra: png
+Requires-Dist: cairosvg>=2.7; extra == "png"
+Provides-Extra: dev
+Requires-Dist: pytest>=7.0; extra == "dev"
