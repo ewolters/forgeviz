@@ -36,4 +36,5 @@ tests/test_all_charts.py
 tests/test_charts.py
 tests/test_complete.py
 tests/test_fixes.py
+tests/test_generic.py
 tests/test_knowledge.py
