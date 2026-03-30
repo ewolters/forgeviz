@@ -31,19 +31,25 @@ TEXT_SECONDARY = "#9aaa9a"
 TEXT_DIM = "#7a8f7a"
 
 # Border
-BORDER = "rgba(74, 159, 110, 0.15)"
+BORDER = "rgba(74, 159, 110, 0.2)"
 BORDER_ACCENT = "rgba(74, 159, 110, 0.3)"
 
 # =========================================================================
 # Status Colors (semantic — used for badges, indicators, alerts)
 # =========================================================================
 
-STATUS_GREEN = "#22c55e"   # success, in-control, calibrated
-STATUS_AMBER = "#f59e0b"   # warning, stale, due-soon
-STATUS_RED = "#ef4444"     # error, out-of-control, contradicted, overdue
-STATUS_BLUE = "#60a5fa"    # info, investigating, active
-STATUS_PURPLE = "#a78bfa"  # transition, standardize mode
+STATUS_GREEN = "#4a9f6e"   # success, in-control, calibrated (= accent primary)
+STATUS_AMBER = "#e89547"   # warning, stale, due-soon
+STATUS_RED = "#d06060"     # error, out-of-control, contradicted, overdue
+STATUS_BLUE = "#4a9faf"    # info, investigating, active (= accent blue)
+STATUS_PURPLE = "#8a7fbf"  # transition, standardize mode (= accent purple)
 STATUS_DIM = "#64748b"     # inactive, uncalibrated, neutral
+
+# Dim/border variants for status colors (used in badges, alert backgrounds)
+ERROR_DIM = "rgba(208, 96, 96, 0.15)"
+ERROR_BORDER = "rgba(208, 96, 96, 0.3)"
+WARNING_DIM = "rgba(232, 149, 71, 0.1)"
+WARNING_BORDER = "rgba(232, 149, 71, 0.3)"
 
 # =========================================================================
 # Chart Data Colors (10-color palette for data series)
@@ -100,7 +106,7 @@ NODE_COLORS = {
 DETECTION_COLORS = {
     1: STATUS_GREEN,   # source prevention — best
     2: STATUS_GREEN,   # auto arrest
-    3: "#22c55e",      # auto detect
+    3: STATUS_GREEN,   # auto detect
     4: STATUS_BLUE,    # auto alert
     5: STATUS_BLUE,    # structured check
     6: STATUS_AMBER,   # observation — weak
@@ -273,4 +279,8 @@ def css_variables() -> dict[str, str]:
         "--info": STATUS_BLUE,
         "--border": BORDER,
         "--border-accent": BORDER_ACCENT,
+        "--error-dim": ERROR_DIM,
+        "--error-border": ERROR_BORDER,
+        "--warning-dim": WARNING_DIM,
+        "--warning-border": WARNING_BORDER,
     }
