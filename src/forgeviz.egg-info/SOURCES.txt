@@ -9,6 +9,7 @@ src/forgeviz.egg-info/dependency_links.txt
 src/forgeviz.egg-info/requires.txt
 src/forgeviz.egg-info/top_level.txt
 src/forgeviz/charts/__init__.py
+src/forgeviz/charts/bayesian.py
 src/forgeviz/charts/capability.py
 src/forgeviz/charts/control.py
 src/forgeviz/charts/diagnostic.py
@@ -16,8 +17,11 @@ src/forgeviz/charts/distribution.py
 src/forgeviz/charts/effects.py
 src/forgeviz/charts/gage.py
 src/forgeviz/charts/generic.py
+src/forgeviz/charts/interactive.py
 src/forgeviz/charts/knowledge.py
+src/forgeviz/charts/reliability.py
 src/forgeviz/charts/scatter.py
+src/forgeviz/charts/statistical.py
 src/forgeviz/charts/surface.py
 src/forgeviz/charts/time_series.py
 src/forgeviz/core/__init__.py
@@ -27,6 +31,7 @@ src/forgeviz/renderers/__init__.py
 src/forgeviz/renderers/plotly.py
 src/forgeviz/renderers/svg.py
 src/forgeviz/themes/__init__.py
+tests/test_all_charts.py
 tests/test_charts.py
 tests/test_complete.py
 tests/test_fixes.py

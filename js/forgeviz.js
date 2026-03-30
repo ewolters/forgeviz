@@ -1013,3 +1013,146 @@
     };
 
 })(ForgeViz);
+
+// ========================================================================
+// COUNTERFACTUAL / SLIDER SYSTEM — What-if exploration
+// ========================================================================
+
+(function(FV) {
+    'use strict';
+
+    FV.slider = function(container, spec, options) {
+        options = options || {};
+        const interactive = spec.interactive;
+        if (!interactive || interactive.type !== 'slider') {
+            return FV.render(container, spec, options);
+        }
+
+        const factors = interactive.factors;
+        const coefficients = interactive.coefficients;
+        const responseName = interactive.response_name || 'Response';
+        let currentValues = Object.assign({}, interactive.current_values);
+
+        // Create layout: sliders on left, chart on right
+        container.innerHTML = '';
+        container.style.display = 'flex';
+        container.style.gap = '16px';
+
+        // Slider panel
+        const sliderPanel = document.createElement('div');
+        sliderPanel.style.cssText = 'width:200px;flex-shrink:0;display:flex;flex-direction:column;gap:10px;padding:8px;';
+        container.appendChild(sliderPanel);
+
+        // Prediction display
+        const predDisplay = document.createElement('div');
+        predDisplay.style.cssText = 'font-size:13px;font-weight:600;color:#4a9f6e;font-family:Inter,system-ui;padding:4px 0;border-bottom:1px solid rgba(255,255,255,0.1);margin-bottom:4px;';
+        sliderPanel.appendChild(predDisplay);
+
+        // Chart area
+        const chartArea = document.createElement('div');
+        chartArea.style.cssText = 'flex:1;min-width:0;';
+        container.appendChild(chartArea);
+
+        // Build sliders
+        const sliderEls = {};
+        factors.forEach(function(factor) {
+            const row = document.createElement('div');
+            row.style.cssText = 'display:flex;flex-direction:column;gap:2px;';
+
+            const label = document.createElement('div');
+            label.style.cssText = 'font-size:10px;color:#9aaa9a;font-family:Inter,system-ui;display:flex;justify-content:space-between;';
+            const nameSpan = document.createElement('span');
+            nameSpan.textContent = factor.name;
+            const valSpan = document.createElement('span');
+            valSpan.style.fontFamily = 'JetBrains Mono, monospace';
+            valSpan.textContent = (currentValues[factor.name] || 0).toFixed(2);
+            label.appendChild(nameSpan);
+            label.appendChild(valSpan);
+            row.appendChild(label);
+
+            const slider = document.createElement('input');
+            slider.type = 'range';
+            slider.min = factor.low;
+            slider.max = factor.high;
+            slider.step = factor.step || ((factor.high - factor.low) / 100);
+            slider.value = currentValues[factor.name] || ((factor.low + factor.high) / 2);
+            slider.style.cssText = 'width:100%;accent-color:#4a9f6e;';
+            row.appendChild(slider);
+
+            sliderEls[factor.name] = { slider: slider, valSpan: valSpan };
+
+            slider.addEventListener('input', function() {
+                currentValues[factor.name] = parseFloat(slider.value);
+                valSpan.textContent = parseFloat(slider.value).toFixed(2);
+                updateChart();
+            });
+
+            sliderPanel.appendChild(row);
+        });
+
+        // Reset button
+        const resetBtn = document.createElement('button');
+        resetBtn.textContent = 'Reset';
+        resetBtn.style.cssText = 'padding:4px 8px;border-radius:4px;border:1px solid rgba(255,255,255,0.15);background:transparent;color:#94a3b8;font-size:10px;cursor:pointer;margin-top:8px;';
+        resetBtn.addEventListener('click', function() {
+            currentValues = Object.assign({}, interactive.current_values);
+            factors.forEach(function(f) {
+                sliderEls[f.name].slider.value = currentValues[f.name];
+                sliderEls[f.name].valSpan.textContent = currentValues[f.name].toFixed(2);
+            });
+            updateChart();
+        });
+        sliderPanel.appendChild(resetBtn);
+
+        function evaluateModel(values) {
+            let pred = coefficients['Intercept'] || 0;
+            const names = Object.keys(values);
+            names.forEach(function(name) {
+                pred += (coefficients[name] || 0) * values[name];
+            });
+            for (let i = 0; i < names.length; i++) {
+                for (let j = i + 1; j < names.length; j++) {
+                    const term = names[i] + '*' + names[j];
+                    pred += (coefficients[term] || 0) * values[names[i]] * values[names[j]];
+                }
+            }
+            names.forEach(function(name) {
+                const term = name + '^2';
+                pred += (coefficients[term] || 0) * values[name] * values[name];
+            });
+            return pred;
+        }
+
+        function updateChart() {
+            const pred = evaluateModel(currentValues);
+            predDisplay.textContent = responseName + ': ' + pred.toFixed(4);
+
+            // Sweep primary factor
+            const primary = factors[0];
+            const nPts = 50;
+            const step = (primary.high - primary.low) / nPts;
+            const sweepX = [];
+            const sweepY = [];
+            for (let i = 0; i <= nPts; i++) {
+                const x = primary.low + i * step;
+                sweepX.push(x);
+                const vals = Object.assign({}, currentValues);
+                vals[primary.name] = x;
+                sweepY.push(evaluateModel(vals));
+            }
+
+            const updatedSpec = Object.assign({}, spec, {
+                traces: [
+                    { x: sweepX, y: sweepY, name: responseName + ' vs ' + primary.name, trace_type: 'line', color: '#4a9f6e', width: 2, marker_size: 0, dash: '', fill: '', opacity: 1, metadata: {} },
+                    { x: [currentValues[primary.name]], y: [pred], name: 'Current', trace_type: 'scatter', color: '#f59e0b', width: 1, marker_size: 10, dash: '', fill: '', opacity: 1, metadata: {} },
+                ],
+                interactive: null, // prevent recursion
+            });
+
+            FV.render(chartArea, updatedSpec, { toolbar: false });
+        }
+
+        updateChart();
+    };
+
+})(ForgeViz);

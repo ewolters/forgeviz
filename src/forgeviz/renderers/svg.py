@@ -46,13 +46,32 @@ def to_svg(spec: ChartSpec, width: int | None = None, height: int | None = None)
                         all_y.append(v)
                 all_x_numeric.append(trace.get("x_position", 0))
             # Contour — extract from x, y, z arrays
-            elif trace_type == "contour":
-                for v in trace.get("x", []):
+            elif trace_type in ("contour", "heatmap"):
+                tx = trace.get("x", [])
+                ty = trace.get("y", [])
+                tz = trace.get("z", [])
+                # Handle string or numeric x/y
+                for v in tx:
                     if isinstance(v, (int, float)):
                         all_x_numeric.append(v)
-                for v in trace.get("y", []):
+                    else:
+                        is_categorical_x = True
+                        if str(v) not in all_x_labels:
+                            all_x_labels.append(str(v))
+                for v in ty:
                     if isinstance(v, (int, float)):
                         all_y.append(v)
+                    else:
+                        # Use index for y positioning
+                        pass
+                # Extract z range for y-axis if y is categorical
+                if tz:
+                    for row in tz:
+                        if isinstance(row, list):
+                            all_y.extend(v for v in row if isinstance(v, (int, float)))
+                # Ensure we have y range even if labels are strings
+                if not all_y and tz:
+                    all_y = [0, len(ty)]
             # Generic dict with y list
             elif "y" in trace and isinstance(trace["y"], list):
                 for v in trace["y"]:
@@ -315,8 +334,8 @@ def _render_dict_trace(parts, trace, ti, sx, sy, ml, mt, pw, ph, theme, is_cat, 
         for outlier in trace.get("outliers", []):
             parts.append(f'<circle cx="{cx:.1f}" cy="{sy(outlier):.1f}" r="3" fill="none" stroke="{color}" stroke-width="1"/>')
 
-    elif trace_type == "contour":
-        # Simplified contour: render as heatmap grid
+    elif trace_type in ("contour", "heatmap"):
+        # Render as colored grid cells
         x_vals = trace.get("x", [])
         y_vals = trace.get("y", [])
         z_vals = trace.get("z", [])
