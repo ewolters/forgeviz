@@ -6,8 +6,7 @@ grid that the JS renderer or Plotly can consume as a contour/heatmap.
 
 from __future__ import annotations
 
-from ..core.colors import get_color
-from ..core.spec import ChartSpec, Trace
+from ..core.spec import ChartSpec
 
 
 def contour_plot(

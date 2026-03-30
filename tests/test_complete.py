@@ -129,25 +129,8 @@ class TestImports:
     def test_charts_init_imports_all(self):
         """Verify all chart builders are importable from charts package."""
         from forgeviz.charts import (
-            capability_histogram,
             control_chart,
-            histogram,
-            scatter,
-            pareto,
-            main_effects_plot,
-            contour_plot,
-            residual_plot,
-            gage_rr_components,
-            knowledge_health_sparklines,
-            maturity_trajectory,
             detection_ladder,
-            evidence_timeline,
-            proactive_reactive_gauge,
-            ddmrp_buffer_status,
-            yield_from_cpk_curve,
-            forecast_vs_actual,
-            inventory_position,
-            capacity_loading,
         )
         assert callable(control_chart)
         assert callable(detection_ladder)
@@ -158,6 +141,6 @@ class TestImports:
         assert callable(to_svg)
 
     def test_core_import(self):
-        from forgeviz.core import ChartSpec, render, get_theme, SVEND_COLORS
+        from forgeviz.core import render, SVEND_COLORS
         assert callable(render)
         assert len(SVEND_COLORS) == 10

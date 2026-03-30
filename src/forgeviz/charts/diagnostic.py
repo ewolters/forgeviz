@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import math
 
 from ..core.colors import STATUS_RED, STATUS_DIM, get_color
 from ..core.spec import ChartSpec

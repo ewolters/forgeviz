@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import math
 
 from ..core.colors import STATUS_AMBER, STATUS_GREEN, STATUS_RED, get_color
 from ..core.spec import ChartSpec
@@ -55,7 +54,6 @@ def capability_sixpack(
     6. Capability summary box
     """
     from .control import control_chart
-    from .distribution import histogram
     from .effects import normal_probability_plot
 
     specs = []

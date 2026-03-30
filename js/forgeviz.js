@@ -715,3 +715,301 @@
     };
 
 })(ForgeViz);
+
+// ========================================================================
+// CHART UTILITIES — Color picker, inline editing, toolbar
+// ========================================================================
+
+(function(FV) {
+    'use strict';
+
+    // ────────────────────────────────────────────────────────────────────
+    // Chart Toolbar — export, copy, theme, fullscreen
+    // ────────────────────────────────────────────────────────────────────
+
+    FV.addToolbar = function(container, chartInstance, options) {
+        options = options || {};
+        const bar = document.createElement('div');
+        bar.style.cssText = 'display:flex;gap:4px;justify-content:flex-end;padding:4px 0;';
+
+        const btnStyle = 'padding:2px 8px;border-radius:4px;border:1px solid rgba(255,255,255,0.15);background:transparent;color:#94a3b8;font-size:10px;cursor:pointer;font-family:Inter,system-ui;transition:background 0.15s;';
+
+        // Copy to clipboard
+        const copyBtn = document.createElement('button');
+        copyBtn.textContent = 'Copy';
+        copyBtn.style.cssText = btnStyle;
+        copyBtn.addEventListener('click', function() {
+            if (chartInstance.copyToClipboard) chartInstance.copyToClipboard();
+            copyBtn.textContent = 'Copied';
+            setTimeout(function() { copyBtn.textContent = 'Copy'; }, 1500);
+        });
+        bar.appendChild(copyBtn);
+
+        // Download SVG
+        const svgBtn = document.createElement('button');
+        svgBtn.textContent = 'SVG';
+        svgBtn.style.cssText = btnStyle;
+        svgBtn.addEventListener('click', function() {
+            if (chartInstance.downloadSVG) chartInstance.downloadSVG(options.filename || 'chart.svg');
+        });
+        bar.appendChild(svgBtn);
+
+        // Download PNG
+        const pngBtn = document.createElement('button');
+        pngBtn.textContent = 'PNG';
+        pngBtn.style.cssText = btnStyle;
+        pngBtn.addEventListener('click', function() {
+            if (chartInstance.downloadPNG) chartInstance.downloadPNG(options.filename || 'chart.png', 2);
+        });
+        bar.appendChild(pngBtn);
+
+        // Theme toggle
+        if (options.showThemeToggle !== false) {
+            const themeBtn = document.createElement('button');
+            themeBtn.textContent = 'Theme';
+            themeBtn.style.cssText = btnStyle;
+            let themeIdx = 0;
+            const themeNames = Object.keys(FV.themes);
+            themeBtn.addEventListener('click', function() {
+                themeIdx = (themeIdx + 1) % themeNames.length;
+                container._currentSpec.theme = themeNames[themeIdx];
+                FV.render(container, container._currentSpec);
+                themeBtn.textContent = themeNames[themeIdx];
+            });
+            bar.appendChild(themeBtn);
+        }
+
+        // Fullscreen toggle
+        const fsBtn = document.createElement('button');
+        fsBtn.textContent = 'Expand';
+        fsBtn.style.cssText = btnStyle;
+        fsBtn.addEventListener('click', function() {
+            if (!document.fullscreenElement) {
+                container.requestFullscreen().catch(function() {});
+                fsBtn.textContent = 'Exit';
+            } else {
+                document.exitFullscreen();
+                fsBtn.textContent = 'Expand';
+            }
+        });
+        bar.appendChild(fsBtn);
+
+        container.insertBefore(bar, container.firstChild);
+        return bar;
+    };
+
+    // ────────────────────────────────────────────────────────────────────
+    // Inline Title Editing — double-click title to edit
+    // ────────────────────────────────────────────────────────────────────
+
+    FV.enableTitleEdit = function(container, onSave) {
+        const svg = container.querySelector('svg');
+        if (!svg) return;
+
+        const titleEl = svg.querySelector('text[text-anchor="middle"][font-weight]');
+        if (!titleEl) return;
+
+        titleEl.style.cursor = 'pointer';
+        titleEl.addEventListener('dblclick', function(e) {
+            const oldText = titleEl.textContent;
+            const rect = container.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+
+            const input = document.createElement('input');
+            input.type = 'text';
+            input.value = oldText;
+            input.style.cssText = `position:absolute;left:${x - 100}px;top:${y - 12}px;width:200px;background:#1a1a2e;color:#e8efe8;border:1px solid #4a9f6e;padding:2px 6px;border-radius:3px;font-size:13px;font-family:Inter,system-ui;text-align:center;z-index:1001;`;
+            container.appendChild(input);
+            input.focus();
+            input.select();
+
+            function commit() {
+                const newText = input.value.trim() || oldText;
+                titleEl.textContent = newText;
+                if (input.parentNode) container.removeChild(input);
+                if (container._currentSpec) container._currentSpec.title = newText;
+                if (onSave) onSave(newText);
+            }
+
+            input.addEventListener('keydown', function(ke) {
+                if (ke.key === 'Enter') commit();
+                if (ke.key === 'Escape') { if (input.parentNode) container.removeChild(input); }
+            });
+            input.addEventListener('blur', commit);
+        });
+    };
+
+    // ────────────────────────────────────────────────────────────────────
+    // Color Picker — click trace to change color
+    // ────────────────────────────────────────────────────────────────────
+
+    FV.enableColorPicker = function(container, onColorChange) {
+        const PALETTE = [
+            '#4a9f6e','#e8c547','#4dc9c0','#a78bfa','#f472b6',
+            '#fb923c','#60a5fa','#f87171','#06b6d4','#84cc16',
+            '#8b5cf6','#ec4899','#14b8a6','#eab308','#6366f1',
+        ];
+
+        const svg = container.querySelector('svg');
+        if (!svg) return;
+
+        // Find polylines (line traces) and make them clickable for color change
+        svg.querySelectorAll('polyline, circle[data-trace]').forEach(function(el) {
+            el.addEventListener('contextmenu', function(e) {
+                e.preventDefault();
+
+                // Remove existing picker
+                const existing = container.querySelector('.fv-color-picker');
+                if (existing) container.removeChild(existing);
+
+                const picker = document.createElement('div');
+                picker.className = 'fv-color-picker';
+                picker.style.cssText = `position:absolute;left:${e.clientX - container.getBoundingClientRect().left}px;top:${e.clientY - container.getBoundingClientRect().top}px;background:#1a261a;border:1px solid rgba(74,159,110,0.3);border-radius:6px;padding:6px;display:grid;grid-template-columns:repeat(5,1fr);gap:3px;z-index:1001;`;
+
+                PALETTE.forEach(function(color) {
+                    const swatch = document.createElement('div');
+                    swatch.style.cssText = `width:20px;height:20px;border-radius:3px;cursor:pointer;background:${color};border:1px solid rgba(255,255,255,0.1);`;
+                    swatch.addEventListener('click', function() {
+                        // Apply color
+                        if (el.tagName === 'polyline') {
+                            el.setAttribute('stroke', color);
+                        } else {
+                            el.setAttribute('fill', color);
+                        }
+                        container.removeChild(picker);
+                        if (onColorChange) onColorChange({ element: el.tagName, color: color });
+                    });
+                    picker.appendChild(swatch);
+                });
+
+                container.appendChild(picker);
+
+                // Close on click outside
+                setTimeout(function() {
+                    document.addEventListener('click', function handler() {
+                        const p = container.querySelector('.fv-color-picker');
+                        if (p) container.removeChild(p);
+                        document.removeEventListener('click', handler);
+                    });
+                }, 10);
+            });
+        });
+    };
+
+    // ────────────────────────────────────────────────────────────────────
+    // Axis Label Editing — double-click axis labels to edit
+    // ────────────────────────────────────────────────────────────────────
+
+    FV.enableAxisEdit = function(container, onSave) {
+        const svg = container.querySelector('svg');
+        if (!svg) return;
+
+        // Find axis labels (text elements near edges)
+        svg.querySelectorAll('text').forEach(function(textEl) {
+            const fontSize = parseFloat(textEl.getAttribute('font-size') || 0);
+            const anchor = textEl.getAttribute('text-anchor');
+
+            // Axis labels are font-size 11, positioned at edges
+            if (fontSize === 11 && anchor === 'middle') {
+                textEl.style.cursor = 'pointer';
+                textEl.addEventListener('dblclick', function(e) {
+                    const oldText = textEl.textContent;
+                    const rect = container.getBoundingClientRect();
+
+                    const input = document.createElement('input');
+                    input.type = 'text';
+                    input.value = oldText;
+                    input.style.cssText = `position:absolute;left:${e.clientX - rect.left - 80}px;top:${e.clientY - rect.top - 10}px;width:160px;background:#1a1a2e;color:#e8efe8;border:1px solid #4a9f6e;padding:2px 6px;border-radius:3px;font-size:11px;font-family:Inter,system-ui;z-index:1001;`;
+                    container.appendChild(input);
+                    input.focus();
+                    input.select();
+
+                    function commit() {
+                        textEl.textContent = input.value.trim() || oldText;
+                        if (input.parentNode) container.removeChild(input);
+                        if (onSave) onSave({ label: textEl.textContent, original: oldText });
+                    }
+
+                    input.addEventListener('keydown', function(ke) {
+                        if (ke.key === 'Enter') commit();
+                        if (ke.key === 'Escape') { if (input.parentNode) container.removeChild(input); }
+                    });
+                    input.addEventListener('blur', commit);
+                });
+            }
+        });
+    };
+
+    // ────────────────────────────────────────────────────────────────────
+    // Data Table — show underlying data on hover/click
+    // ────────────────────────────────────────────────────────────────────
+
+    FV.showDataTable = function(container, spec) {
+        if (!spec.traces || !spec.traces.length) return;
+
+        const table = document.createElement('div');
+        table.style.cssText = 'max-height:200px;overflow-y:auto;font-size:11px;font-family:"JetBrains Mono",monospace;border:1px solid rgba(255,255,255,0.1);border-radius:4px;margin-top:4px;';
+
+        let html = '<table style="width:100%;border-collapse:collapse;color:#e8efe8;">';
+        html += '<thead><tr style="background:rgba(74,159,110,0.1);">';
+
+        // Headers from first trace
+        const t0 = spec.traces[0];
+        html += '<th style="padding:3px 6px;text-align:left;border-bottom:1px solid rgba(255,255,255,0.1);">#</th>';
+        html += '<th style="padding:3px 6px;text-align:right;border-bottom:1px solid rgba(255,255,255,0.1);">X</th>';
+        spec.traces.forEach(function(t, i) {
+            html += `<th style="padding:3px 6px;text-align:right;border-bottom:1px solid rgba(255,255,255,0.1);">${t.name || 'Y' + (i + 1)}</th>`;
+        });
+        html += '</tr></thead><tbody>';
+
+        const n = t0.x ? t0.x.length : 0;
+        for (let i = 0; i < n; i++) {
+            html += `<tr style="border-bottom:1px solid rgba(255,255,255,0.03);">`;
+            html += `<td style="padding:2px 6px;color:#7a8f7a;">${i + 1}</td>`;
+            html += `<td style="padding:2px 6px;text-align:right;">${t0.x[i]}</td>`;
+            spec.traces.forEach(function(t) {
+                const val = t.y && t.y[i] !== undefined ? (typeof t.y[i] === 'number' ? t.y[i].toFixed(4) : t.y[i]) : '—';
+                html += `<td style="padding:2px 6px;text-align:right;">${val}</td>`;
+            });
+            html += '</tr>';
+        }
+        html += '</tbody></table>';
+        table.innerHTML = html;
+        container.appendChild(table);
+
+        return table;
+    };
+
+    // ────────────────────────────────────────────────────────────────────
+    // Enhanced render that stores spec + auto-enables utilities
+    // ────────────────────────────────────────────────────────────────────
+
+    const _originalRender = FV.render;
+
+    FV.render = function(container, spec, options) {
+        container._currentSpec = spec;
+        const instance = _originalRender(container, spec, options);
+
+        // Auto-enable utilities if options say so
+        options = options || {};
+        if (options.toolbar !== false) {
+            FV.addToolbar(container, instance, options);
+        }
+        if (options.editableTitle) {
+            FV.enableTitleEdit(container, options.onTitleSave);
+        }
+        if (options.editableAxes) {
+            FV.enableAxisEdit(container, options.onAxisSave);
+        }
+        if (options.colorPicker) {
+            FV.enableColorPicker(container, options.onColorChange);
+        }
+        if (options.showTable) {
+            FV.showDataTable(container, spec);
+        }
+
+        return instance;
+    };
+
+})(ForgeViz);

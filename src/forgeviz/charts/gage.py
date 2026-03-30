@@ -16,7 +16,6 @@ def gage_rr_components(
     """
     spec = ChartSpec(title=title, chart_type="gage_components", height=200)
 
-    categories = ["% Contribution", "% Study Var"]
     gage = pct_contribution.get("gage_rr", 0)
     repeat = pct_contribution.get("repeatability", 0)
     reprod = pct_contribution.get("reproducibility", 0)

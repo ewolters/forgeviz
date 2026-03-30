@@ -1,4 +1,32 @@
-"""ForgeViz core — ChartSpec and color palettes."""
+"""ForgeViz core — ChartSpec, colors, themes."""
 
-from .colors import SVEND_COLORS, THEMES, get_color, get_theme
+from .colors import (
+    ACCENT_PRIMARY,
+    BG_PRIMARY,
+    BG_SECONDARY,
+    DETECTION_COLORS,
+    MATURITY_COLORS,
+    NODE_COLORS,
+    STATUS_AMBER,
+    STATUS_BLUE,
+    STATUS_DIM,
+    STATUS_GREEN,
+    STATUS_PURPLE,
+    STATUS_RED,
+    SVEND_COLORS,
+    SVEND_COLORS_EXTENDED,
+    TEXT_DIM,
+    TEXT_PRIMARY,
+    TEXT_SECONDARY,
+    THEMES,
+    TIER_COLORS,
+    css_variables,
+    get_color,
+    get_detection_color,
+    get_maturity_color,
+    get_node_color,
+    get_theme,
+    get_tier_color,
+    rgba,
+)
 from .spec import ChartSpec, render
