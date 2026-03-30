@@ -248,6 +248,7 @@
                             cx: cx.toFixed(1), cy: cy.toFixed(1),
                             r: t.marker_size / 2, fill: color,
                             'data-idx': i, 'data-trace': ti,
+                            'data-x': xv, 'data-y': t.y[i],
                             style: 'cursor:pointer',
                         });
                         svg.appendChild(circle);
@@ -262,6 +263,7 @@
                         cx: cx.toFixed(1), cy: cy.toFixed(1),
                         r: (t.marker_size || 6) / 2, fill: color,
                         opacity: t.opacity || 1, style: 'cursor:pointer',
+                        'data-idx': i, 'data-x': xv, 'data-y': t.y[i],
                     });
                     svg.appendChild(circle);
                     dataPoints.push({ el: circle, x: t.x[i], y: t.y[i], name: t.name, idx: i });
@@ -357,6 +359,18 @@
             });
         });
 
+        // Store scale info for interactive features (threshold drag, brushing)
+        container._scales = {
+            sx: sx, sy: sy,
+            xDomain: [xNice.min, xNice.max],
+            yDomain: [yNice.min, yNice.max],
+            xRange: [ml, ml + pw],
+            yRange: [mt + ph, mt],
+            // Inverse functions: pixel → data value
+            invertX: function(px) { return xNice.min + (px - ml) / pw * (xNice.max - xNice.min); },
+            invertY: function(py) { return yNice.max - (py - mt) / ph * (yNice.max - yNice.min); },
+        };
+
         // Return API for this chart instance
         return {
             svg: svg,
@@ -404,11 +418,12 @@
     // ========================================================================
 
     function renderResponsive(container, spec, options) {
-        const instance = render(container, spec, options);
+        // Use FV.render (enhanced) so responsive charts get toolbar, spec storage, utilities
+        const instance = FV.render(container, spec, options);
         let resizeTimer;
         const observer = new ResizeObserver(function() {
             clearTimeout(resizeTimer);
-            resizeTimer = setTimeout(function() { render(container, spec, options); }, 150);
+            resizeTimer = setTimeout(function() { FV.render(container, spec, options); }, 150);
         });
         observer.observe(container);
         return instance;
@@ -451,10 +466,10 @@
                 detail: { xMin: xMin, xMax: xMax, group: groupName },
                 bubbles: true,
             }));
-            // Highlight points within range
-            const circles = c.querySelectorAll('circle[data-idx]');
+            // Highlight points within range (compare data values, not pixel coords)
+            const circles = c.querySelectorAll('circle[data-x]');
             circles.forEach(function(el) {
-                const x = parseFloat(el.getAttribute('cx'));
+                const x = parseFloat(el.getAttribute('data-x'));
                 // Dim points outside range
                 if (x < xMin || x > xMax) {
                     el.setAttribute('opacity', '0.15');
@@ -597,18 +612,20 @@
                 document.addEventListener('mouseup', function() {
                     if (!dragging) return;
                     dragging = false;
-                    // Compute new value from pixel position
-                    // Emit event with new threshold value
+                    // Compute new value from pixel position using stored scale
                     const newY = parseFloat(line.getAttribute('y1'));
+                    const scales = container._scales;
+                    const dataValue = scales ? scales.invertY(newY) : null;
                     if (callback) {
                         callback({
                             originalLabel: line.nextElementSibling ? line.nextElementSibling.textContent.trim() : '',
+                            value: dataValue,
                             pixelY: newY,
                             color: line.getAttribute('stroke'),
                         });
                     }
                     container.dispatchEvent(new CustomEvent('forgeviz:threshold-change', {
-                        detail: { pixelY: newY, color: line.getAttribute('stroke') },
+                        detail: { value: dataValue, pixelY: newY, color: line.getAttribute('stroke') },
                         bubbles: true,
                     }));
                 });
@@ -993,7 +1010,7 @@
 
         // Auto-enable utilities if options say so
         options = options || {};
-        if (options.toolbar !== false) {
+        if (options.toolbar === true) {
             FV.addToolbar(container, instance, options);
         }
         if (options.editableTitle) {
