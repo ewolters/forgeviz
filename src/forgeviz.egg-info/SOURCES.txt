@@ -30,6 +30,7 @@ src/forgeviz/core/spec.py
 src/forgeviz/renderers/__init__.py
 src/forgeviz/renderers/plotly.py
 src/forgeviz/renderers/svg.py
+src/forgeviz/static/js/forgeviz.js
 src/forgeviz/themes/__init__.py
 tests/test_all_charts.py
 tests/test_charts.py

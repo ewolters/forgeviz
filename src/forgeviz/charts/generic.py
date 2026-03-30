@@ -5,7 +5,6 @@ For when you need a plain chart without domain-specific assumptions.
 
 from __future__ import annotations
 
-import math
 
 from ..core.colors import get_color
 from ..core.spec import ChartSpec

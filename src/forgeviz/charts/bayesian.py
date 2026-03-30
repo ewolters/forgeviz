@@ -152,7 +152,7 @@ def bayesian_acceptance(
     spec.add_reference_line(accept_threshold, axis="x", color=STATUS_RED, dash="dashed", label=f"Accept limit ({accept_threshold:.1%})")
 
     # Decision
-    p_accept = sum(1 for x in x_vals if x <= accept_threshold and y_vals[x_vals.index(x)] > 0.01) / n_pts
+    p_accept = sum(1 for i, x in enumerate(x_vals) if x <= accept_threshold and y_vals[i] > 0.01) / n_pts
     decision = "ACCEPT" if p_accept >= 0.95 else "REJECT"
     decision_color = STATUS_GREEN if decision == "ACCEPT" else STATUS_RED
 

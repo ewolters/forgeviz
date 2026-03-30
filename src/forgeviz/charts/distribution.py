@@ -8,6 +8,18 @@ from ..core.colors import STATUS_AMBER, STATUS_GREEN, STATUS_RED, get_color
 from ..core.spec import ChartSpec
 
 
+def _quantile(sorted_data: list[float], p: float) -> float:
+    """Linear interpolation quantile (matches numpy default method)."""
+    n = len(sorted_data)
+    if n == 1:
+        return sorted_data[0]
+    pos = p * (n - 1)
+    lower = int(pos)
+    upper = min(lower + 1, n - 1)
+    weight = pos - lower
+    return sorted_data[lower] * (1 - weight) + sorted_data[upper] * weight
+
+
 def histogram(
     data: list[float],
     bins: int = 20,
@@ -76,10 +88,9 @@ def box_plot(
         if not data:
             continue
         sorted_d = sorted(data)
-        n = len(sorted_d)
-        q1 = sorted_d[int(n * 0.25)]
-        q2 = sorted_d[int(n * 0.50)]
-        q3 = sorted_d[int(n * 0.75)]
+        q1 = _quantile(sorted_d, 0.25)
+        q2 = _quantile(sorted_d, 0.50)
+        q3 = _quantile(sorted_d, 0.75)
         iqr = q3 - q1
         whisker_low = max(min(data), q1 - 1.5 * iqr)
         whisker_high = min(max(data), q3 + 1.5 * iqr)

@@ -126,7 +126,7 @@ def sensitivity_tornado(
     Factors sorted by total impact range (most sensitive at top).
     """
     # Sort by total impact
-    impacts = [(f, abs(h - l), l, h) for f, l, h in zip(factors, low_impacts, high_impacts)]
+    impacts = [(f, abs(h - lo), lo, h) for f, lo, h in zip(factors, low_impacts, high_impacts)]
     impacts.sort(key=lambda x: x[1], reverse=True)
 
     sorted_factors = [i[0] for i in impacts]

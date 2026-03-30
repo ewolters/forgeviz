@@ -142,6 +142,47 @@ class TestUntestedExports:
         assert "Residual" in spec.title
 
 
+class TestBoxPlotQuantiles:
+    """Verify box plot uses linear interpolation, not naive integer indexing."""
+
+    def test_even_count_quantiles(self):
+        # [1, 2, 3, 4, 5, 6] — correct Q1=2.25, Q2=3.5, Q3=4.75
+        spec = box_plot({"test": [1, 2, 3, 4, 5, 6]})
+        t = spec.traces[0]
+        assert abs(t["q1"] - 2.25) < 0.01, f"Q1 should be 2.25, got {t['q1']}"
+        assert abs(t["median"] - 3.5) < 0.01, f"Median should be 3.5, got {t['median']}"
+        assert abs(t["q3"] - 4.75) < 0.01, f"Q3 should be 4.75, got {t['q3']}"
+
+    def test_odd_count_quantiles(self):
+        # [1, 2, 3, 4, 5] — correct Q1=2.0, Q2=3.0, Q3=4.0
+        spec = box_plot({"test": [1, 2, 3, 4, 5]})
+        t = spec.traces[0]
+        assert abs(t["q1"] - 2.0) < 0.01
+        assert abs(t["median"] - 3.0) < 0.01
+        assert abs(t["q3"] - 4.0) < 0.01
+
+    def test_two_points(self):
+        spec = box_plot({"test": [10, 20]})
+        t = spec.traces[0]
+        assert abs(t["median"] - 15.0) < 0.01
+        assert abs(t["q1"] - 12.5) < 0.01
+        assert abs(t["q3"] - 17.5) < 0.01
+
+    def test_single_point(self):
+        spec = box_plot({"test": [42]})
+        t = spec.traces[0]
+        assert t["q1"] == 42
+        assert t["median"] == 42
+        assert t["q3"] == 42
+
+    def test_iqr_and_whiskers(self):
+        # [1,2,3,4,5,6,7,8,9,10,100] — 100 should be an outlier
+        spec = box_plot({"test": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 100]})
+        t = spec.traces[0]
+        assert 100 in t["outliers"], "100 should be an outlier"
+        assert t["whisker_high"] <= 20, "Whisker should not extend to outlier"
+
+
 # =============================================================================
 # Edge cases
 # =============================================================================

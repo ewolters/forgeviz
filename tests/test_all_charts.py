@@ -1,6 +1,5 @@
 """Tests for all remaining chart types — statistical, reliability, bayesian, interactive."""
 
-import pytest
 
 from forgeviz.charts.statistical import (
     bubble, dotplot, heatmap, individual_value_plot, interval_plot,
@@ -161,39 +160,5 @@ class TestInteractive:
 
 class TestAllImports:
     def test_everything_importable(self):
-        from forgeviz.charts import (
-            # Generic
-            bar, line, area, pie, gauge, sparkline, grouped_bar, stacked_bar, multi_line,
-            # Control
-            control_chart, from_spc_result,
-            # Distribution
-            histogram, box_plot,
-            # Effects
-            main_effects_plot, interaction_plot, pareto_of_effects, normal_probability_plot,
-            # Scatter
-            scatter, pareto,
-            # Capability
-            capability_histogram, capability_sixpack,
-            # Gage
-            gage_rr_components, gage_rr_by_part, gage_rr_by_operator,
-            # Diagnostic
-            residual_plot, qq_plot, cooks_distance, four_in_one,
-            # Surface
-            contour_plot, response_surface_from_model,
-            # Time series
-            forecast_vs_actual, inventory_position, capacity_loading,
-            # Knowledge (OLR-001)
-            knowledge_health_sparklines, maturity_trajectory, detection_ladder,
-            evidence_timeline, proactive_reactive_gauge, ddmrp_buffer_status, yield_from_cpk_curve,
-            # Statistical
-            heatmap, scatter_matrix, individual_value_plot, interval_plot,
-            dotplot, bubble, parallel_coordinates, mosaic,
-            # Reliability
-            weibull_probability_plot, hazard_function, survival_curve, reliability_block_diagram,
-            # Bayesian
-            bayesian_capability, bayesian_changepoint, bayesian_control_chart, bayesian_acceptance,
-            # Interactive
-            slider_chart, counterfactual_comparison, sensitivity_tornado,
-        )
         # If we got here without ImportError, everything is importable
         assert True

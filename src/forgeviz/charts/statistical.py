@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import math
 
-from ..core.colors import get_color, STATUS_DIM
+from ..core.colors import get_color
 from ..core.spec import ChartSpec
 
 
@@ -56,7 +56,6 @@ def individual_value_plot(
     """Individual data points per group with mean line."""
     spec = ChartSpec(title=title, chart_type="individual_value", x_axis={"label": ""}, y_axis={"label": "Value"})
 
-    names = list(groups.keys())
     for i, (name, values) in enumerate(groups.items()):
         x = [name] * len(values)
         spec.add_trace(x, values, name=name, trace_type="scatter", color=get_color(i), marker_size=5, opacity=0.6)
