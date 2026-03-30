@@ -297,11 +297,14 @@ def yield_from_cpk_curve(
     spec.add_reference_line(1.33, axis="x", color=STATUS_GREEN, dash="dotted", label="Cpk=1.33")
     spec.add_reference_line(99.73, axis="y", color=STATUS_DIM, dash="dotted", label="3σ (99.73%)")
 
-    # Current position
+    # Current position — rendered as a scatter point + annotation
     if current_cpk is not None:
         current_yield = _yield(current_cpk)
-        spec.add_marker([0], color=STATUS_RED, size=10, symbol="circle", label=f"Current: Cpk={current_cpk:.2f}, Yield={current_yield:.2f}%")
-        # The marker index is wrong for arbitrary x — add as annotation instead
+        spec.add_trace(
+            [current_cpk], [current_yield],
+            name=f"Current: Cpk={current_cpk:.2f}",
+            trace_type="scatter", color=STATUS_RED, marker_size=10,
+        )
         spec.annotations.append({
             "x": current_cpk,
             "y": current_yield,

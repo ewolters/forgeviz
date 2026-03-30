@@ -143,7 +143,6 @@ def render(spec: ChartSpec, format: str = "dict") -> Any:
     """Render a ChartSpec to the specified format.
 
     Args:
-        format: "dict", "json", "plotly", "svg", "vegalite"
     """
     if format == "dict":
         return spec.to_dict()
@@ -155,8 +154,5 @@ def render(spec: ChartSpec, format: str = "dict") -> Any:
     elif format == "svg":
         from ..renderers.svg import to_svg
         return to_svg(spec)
-    elif format == "vegalite":
-        from ..renderers.vegalite import to_vegalite
-        return to_vegalite(spec)
     else:
         raise ValueError(f"Unknown format: {format}")
