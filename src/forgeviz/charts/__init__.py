@@ -7,7 +7,10 @@ from .diagnostic import cooks_distance, four_in_one, qq_plot, residual_histogram
 from .distribution import box_plot, histogram
 from .effects import interaction_plot, main_effects_plot, normal_probability_plot, pareto_of_effects
 from .gage import gage_rr_by_operator, gage_rr_by_part, gage_rr_components, gage_xbar_r
-from .generic import area, bar, gauge, grouped_bar, line, multi_line, pie, sparkline, stacked_bar
+from .generic import (
+    area, bar, bullet, donut, gauge, grouped_bar, line, multi_line, pie,
+    risk_heatmap, sparkline, stacked_area, stacked_bar,
+)
 from .interactive import counterfactual_comparison, sensitivity_tornado, slider_chart
 from .knowledge import (
     ddmrp_buffer_status,
@@ -69,12 +72,16 @@ __all__ = [
     # generic
     "area",
     "bar",
+    "bullet",
+    "donut",
     "gauge",
     "grouped_bar",
     "line",
     "multi_line",
     "pie",
+    "risk_heatmap",
     "sparkline",
+    "stacked_area",
     "stacked_bar",
     # interactive
     "counterfactual_comparison",
