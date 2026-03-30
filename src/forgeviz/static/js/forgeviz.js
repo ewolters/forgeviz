@@ -129,6 +129,320 @@
     function hideTooltip(tip) { tip.style.display = 'none'; }
 
     // ========================================================================
+    // Dict trace renderers (pie, donut, box, heatmap, contour, bullet, risk, parallel)
+    // ========================================================================
+
+    function _renderDictTrace(svg, t, ti, theme, ml, mt, pw, ph, W, H, spec) {
+        const type = t.type || '';
+        const colors = theme.colors || ['#4a9f6e','#4a9faf','#8a7fbf','#e8c547','#e89547','#ef4444','#60a5fa','#a78bfa'];
+
+        if (type === 'pie' || type === 'donut') {
+            _renderPieDonut(svg, t, colors, ml, mt, pw, ph, type === 'donut');
+        } else if (type === 'box') {
+            _renderBox(svg, t, ti, theme, ml, mt, pw, ph, spec);
+        } else if (type === 'heatmap') {
+            _renderHeatmap(svg, t, colors, ml, mt, pw, ph);
+        } else if (type === 'risk_heatmap') {
+            _renderRiskHeatmap(svg, t, ml, mt, pw, ph);
+        } else if (type === 'contour') {
+            _renderContour(svg, t, ml, mt, pw, ph);
+        } else if (type === 'bullet_bar') {
+            _renderBullet(svg, t, spec, ml, mt, pw, ph);
+        } else if (type === 'parallel') {
+            _renderParallel(svg, t, colors, ml, mt, pw, ph);
+        }
+    }
+
+    function _renderPieDonut(svg, t, colors, ml, mt, pw, ph, isDonut) {
+        const cx = ml + pw / 2, cy = mt + ph / 2;
+        const R = Math.min(pw, ph) / 2 * 0.85;
+        const hole = isDonut ? (t.hole || 0.55) : 0;
+        const innerR = R * hole;
+        const vals = t.values || [];
+        const labels = t.labels || [];
+        const total = vals.reduce((a, b) => a + b, 0);
+        if (total === 0) return;
+
+        let startAngle = -Math.PI / 2;
+        vals.forEach((v, i) => {
+            const slice = (v / total) * 2 * Math.PI;
+            const endAngle = startAngle + slice;
+            const large = slice > Math.PI ? 1 : 0;
+            const x1 = cx + R * Math.cos(startAngle), y1 = cy + R * Math.sin(startAngle);
+            const x2 = cx + R * Math.cos(endAngle), y2 = cy + R * Math.sin(endAngle);
+
+            let d;
+            if (isDonut) {
+                const ix1 = cx + innerR * Math.cos(startAngle), iy1 = cy + innerR * Math.sin(startAngle);
+                const ix2 = cx + innerR * Math.cos(endAngle), iy2 = cy + innerR * Math.sin(endAngle);
+                d = `M${ix1},${iy1} L${x1},${y1} A${R},${R} 0 ${large} 1 ${x2},${y2} L${ix2},${iy2} A${innerR},${innerR} 0 ${large} 0 ${ix1},${iy1}`;
+            } else {
+                d = `M${cx},${cy} L${x1},${y1} A${R},${R} 0 ${large} 1 ${x2},${y2} Z`;
+            }
+
+            svg.appendChild(svgEl('path', { d: d, fill: colors[i % colors.length], stroke: '#0a0f0a', 'stroke-width': 1 }));
+
+            // Label
+            const mid = startAngle + slice / 2;
+            const lx = cx + (R * 0.65) * Math.cos(mid), ly = cy + (R * 0.65) * Math.sin(mid);
+            const pct = ((v / total) * 100).toFixed(0);
+            if (slice > 0.15) {
+                svg.appendChild(svgEl('text', {
+                    x: lx, y: ly, fill: '#e8efe8', 'text-anchor': 'middle', 'dominant-baseline': 'middle',
+                    'font-size': 10, 'font-family': 'Inter,system-ui,sans-serif',
+                }, pct + '%'));
+            }
+            startAngle = endAngle;
+        });
+    }
+
+    function _renderBox(svg, t, ti, theme, ml, mt, pw, ph, spec) {
+        // Count box traces to determine width and position
+        const boxTraces = (spec.traces || []).filter(tr => tr.type === 'box');
+        const nBoxes = Math.max(boxTraces.length, 1);
+        const idx = boxTraces.indexOf(t);
+        const boxIdx = idx >= 0 ? idx : ti;
+
+        const boxW = Math.min(60, pw / nBoxes * 0.6);
+        const gap = pw / nBoxes;
+        const bx = ml + gap * boxIdx + gap / 2;
+
+        // Scale y to plot area
+        const vals = [t.whisker_low || t.q1, t.whisker_high || t.q3, t.q1, t.q3, t.median];
+        if (t.outliers) vals.push(...t.outliers);
+        const yMin = Math.min(...vals) - 1;
+        const yMax = Math.max(...vals) + 1;
+        const sy = v => mt + ph - ((v - yMin) / (yMax - yMin)) * ph;
+
+        const color = t.color || theme.colors[boxIdx % theme.colors.length];
+
+        // Whiskers
+        svg.appendChild(svgEl('line', { x1: bx, x2: bx, y1: sy(t.whisker_low || t.q1), y2: sy(t.q1), stroke: color, 'stroke-width': 1, 'stroke-dasharray': '4,2' }));
+        svg.appendChild(svgEl('line', { x1: bx, x2: bx, y1: sy(t.q3), y2: sy(t.whisker_high || t.q3), stroke: color, 'stroke-width': 1, 'stroke-dasharray': '4,2' }));
+        // Whisker caps
+        svg.appendChild(svgEl('line', { x1: bx - boxW/4, x2: bx + boxW/4, y1: sy(t.whisker_low || t.q1), y2: sy(t.whisker_low || t.q1), stroke: color, 'stroke-width': 1 }));
+        svg.appendChild(svgEl('line', { x1: bx - boxW/4, x2: bx + boxW/4, y1: sy(t.whisker_high || t.q3), y2: sy(t.whisker_high || t.q3), stroke: color, 'stroke-width': 1 }));
+        // Box
+        svg.appendChild(svgEl('rect', {
+            x: bx - boxW/2, y: sy(t.q3), width: boxW, height: sy(t.q1) - sy(t.q3),
+            fill: color, opacity: 0.3, stroke: color, 'stroke-width': 1.5,
+        }));
+        // Median
+        svg.appendChild(svgEl('line', { x1: bx - boxW/2, x2: bx + boxW/2, y1: sy(t.median), y2: sy(t.median), stroke: '#e8efe8', 'stroke-width': 2 }));
+        // Outliers
+        (t.outliers || []).forEach(o => {
+            svg.appendChild(svgEl('circle', { cx: bx, cy: sy(o), r: 3, fill: 'none', stroke: color, 'stroke-width': 1 }));
+        });
+        // Label
+        if (t.name) {
+            svg.appendChild(svgEl('text', {
+                x: bx, y: mt + ph + 15, fill: '#9aaa9a', 'text-anchor': 'middle', 'font-size': 10,
+            }, t.name));
+        }
+    }
+
+    function _renderHeatmap(svg, t, colors, ml, mt, pw, ph) {
+        const xLabels = t.x || [];
+        const yLabels = t.y || [];
+        const z = t.z || [];
+        const nCols = xLabels.length;
+        const nRows = yLabels.length;
+        if (nCols === 0 || nRows === 0) return;
+
+        const cellW = pw / nCols;
+        const cellH = ph / nRows;
+
+        // Find z range
+        let zMin = Infinity, zMax = -Infinity;
+        z.forEach(row => row.forEach(v => { if (v < zMin) zMin = v; if (v > zMax) zMax = v; }));
+        if (zMin === zMax) { zMin -= 1; zMax += 1; }
+
+        for (let r = 0; r < nRows; r++) {
+            for (let c = 0; c < nCols; c++) {
+                const val = (z[r] && z[r][c] !== undefined) ? z[r][c] : 0;
+                const t_norm = (val - zMin) / (zMax - zMin);
+                const hue = (1 - t_norm) * 120;  // green (120) to red (0)
+                const color = `hsl(${hue}, 60%, ${20 + t_norm * 25}%)`;
+
+                svg.appendChild(svgEl('rect', {
+                    x: ml + c * cellW, y: mt + r * cellH, width: cellW - 1, height: cellH - 1,
+                    fill: color, stroke: '#0a0f0a', 'stroke-width': 0.5,
+                }));
+                // Value text
+                svg.appendChild(svgEl('text', {
+                    x: ml + c * cellW + cellW / 2, y: mt + r * cellH + cellH / 2,
+                    fill: '#e8efe8', 'text-anchor': 'middle', 'dominant-baseline': 'middle',
+                    'font-size': Math.min(11, cellH * 0.4),
+                }, typeof val === 'number' ? val.toFixed(2) : String(val)));
+            }
+        }
+        // Axis labels
+        xLabels.forEach((l, i) => {
+            svg.appendChild(svgEl('text', {
+                x: ml + i * cellW + cellW / 2, y: mt + ph + 14,
+                fill: '#9aaa9a', 'text-anchor': 'middle', 'font-size': 9,
+            }, String(l)));
+        });
+        yLabels.forEach((l, i) => {
+            svg.appendChild(svgEl('text', {
+                x: ml - 5, y: mt + i * cellH + cellH / 2,
+                fill: '#9aaa9a', 'text-anchor': 'end', 'dominant-baseline': 'middle', 'font-size': 9,
+            }, String(l)));
+        });
+    }
+
+    function _renderRiskHeatmap(svg, t, ml, mt, pw, ph) {
+        const xLabels = t.x || [];
+        const yLabels = t.y || [];
+        const z = t.z || [];
+        const valueLabels = t.value_labels || null;
+        const colorscale = t.colorscale || ['#1a2a1a', '#3b2a1a', '#3b1a1a'];
+        const nCols = xLabels.length;
+        const nRows = yLabels.length;
+        if (nCols === 0 || nRows === 0) return;
+
+        const cellW = pw / nCols;
+        const cellH = ph / nRows;
+
+        let zMin = Infinity, zMax = -Infinity;
+        z.forEach(row => row.forEach(v => { if (v < zMin) zMin = v; if (v > zMax) zMax = v; }));
+        if (zMin === zMax) { zMin = 0; zMax = 1; }
+
+        for (let r = 0; r < nRows; r++) {
+            for (let c = 0; c < nCols; c++) {
+                const val = (z[r] && z[r][c] !== undefined) ? z[r][c] : 0;
+                const t_norm = (val - zMin) / (zMax - zMin);
+                // Interpolate between colorscale stops
+                const ci = t_norm * (colorscale.length - 1);
+                const lo = Math.floor(ci), hi = Math.min(colorscale.length - 1, lo + 1);
+                const frac = ci - lo;
+                const color = _interpolateColor(colorscale[lo], colorscale[hi], frac);
+
+                svg.appendChild(svgEl('rect', {
+                    x: ml + c * cellW, y: mt + r * cellH, width: cellW - 1, height: cellH - 1,
+                    fill: color, stroke: '#0a0f0a', 'stroke-width': 0.5, rx: 3,
+                }));
+                // Cell label
+                const label = (valueLabels && valueLabels[r] && valueLabels[r][c]) ? valueLabels[r][c] : String(val);
+                svg.appendChild(svgEl('text', {
+                    x: ml + c * cellW + cellW / 2, y: mt + r * cellH + cellH / 2,
+                    fill: '#e8efe8', 'text-anchor': 'middle', 'dominant-baseline': 'middle',
+                    'font-size': Math.min(12, cellH * 0.35), 'font-weight': 'bold',
+                }, label));
+            }
+        }
+        // Axis labels
+        xLabels.forEach((l, i) => {
+            svg.appendChild(svgEl('text', { x: ml + i * cellW + cellW / 2, y: mt + ph + 14, fill: '#9aaa9a', 'text-anchor': 'middle', 'font-size': 9 }, String(l)));
+        });
+        yLabels.forEach((l, i) => {
+            svg.appendChild(svgEl('text', { x: ml - 5, y: mt + i * cellH + cellH / 2, fill: '#9aaa9a', 'text-anchor': 'end', 'dominant-baseline': 'middle', 'font-size': 9 }, String(l)));
+        });
+    }
+
+    function _renderContour(svg, t, ml, mt, pw, ph) {
+        // Simplified: render as a filled heatmap (true contours need marching squares)
+        _renderHeatmap(svg, t, null, ml, mt, pw, ph);
+    }
+
+    function _renderBullet(svg, t, spec, ml, mt, pw, ph) {
+        const val = t.value || 0;
+        const min = t.min || 0;
+        const max = t.max || 100;
+        const color = t.color || '#4a9f6e';
+        const barH = Math.min(ph * 0.4, 20);
+        const cy = mt + ph / 2;
+
+        // Background ranges (zones)
+        (spec.zones || []).forEach(z => {
+            const x1 = ml + ((z.low - min) / (max - min)) * pw;
+            const x2 = ml + ((z.high - min) / (max - min)) * pw;
+            svg.appendChild(svgEl('rect', {
+                x: x1, y: cy - barH, width: x2 - x1, height: barH * 2,
+                fill: z.color || '#1a261a', opacity: 0.8,
+            }));
+        });
+
+        // Value bar
+        const barEnd = ml + ((val - min) / (max - min)) * pw;
+        svg.appendChild(svgEl('rect', {
+            x: ml, y: cy - barH / 2, width: Math.max(0, barEnd - ml), height: barH,
+            fill: color, opacity: 0.9, rx: 2,
+        }));
+
+        // Target markers (reference lines)
+        (spec.reference_lines || []).forEach(r => {
+            if (typeof r === 'object' && r.value !== undefined) {
+                const tx = ml + ((r.value - min) / (max - min)) * pw;
+                svg.appendChild(svgEl('line', {
+                    x1: tx, x2: tx, y1: cy - barH * 1.2, y2: cy + barH * 1.2,
+                    stroke: r.color || '#e8efe8', 'stroke-width': r.width || 2.5,
+                }));
+            }
+        });
+    }
+
+    function _renderParallel(svg, t, colors, ml, mt, pw, ph) {
+        const dims = t.dimensions || [];
+        const data = t.data || {};
+        const highlight = t.highlight || [];
+        const nDims = dims.length;
+        if (nDims < 2) return;
+
+        // One vertical axis per dimension
+        const gap = pw / (nDims - 1);
+
+        // Compute ranges per dimension
+        const ranges = dims.map(d => {
+            const vals = data[d] || [];
+            const mn = Math.min(...vals), mx = Math.max(...vals);
+            return { min: mn, max: mx === mn ? mn + 1 : mx };
+        });
+
+        // Draw axes
+        dims.forEach((d, i) => {
+            const x = ml + i * gap;
+            svg.appendChild(svgEl('line', { x1: x, x2: x, y1: mt, y2: mt + ph, stroke: '#333', 'stroke-width': 1 }));
+            svg.appendChild(svgEl('text', {
+                x: x, y: mt + ph + 14, fill: '#9aaa9a', 'text-anchor': 'middle', 'font-size': 9,
+            }, d));
+        });
+
+        // Draw lines for each observation
+        const nObs = (data[dims[0]] || []).length;
+        for (let obs = 0; obs < nObs; obs++) {
+            const pts = dims.map((d, i) => {
+                const val = (data[d] || [])[obs] || 0;
+                const r = ranges[i];
+                const y = mt + ph - ((val - r.min) / (r.max - r.min)) * ph;
+                return `${(ml + i * gap).toFixed(1)},${y.toFixed(1)}`;
+            });
+            const isHighlight = highlight.includes(obs);
+            svg.appendChild(svgEl('polyline', {
+                points: pts.join(' '), fill: 'none',
+                stroke: isHighlight ? '#e8c547' : colors[obs % colors.length],
+                'stroke-width': isHighlight ? 2 : 0.8,
+                opacity: isHighlight ? 1 : 0.4,
+            }));
+        }
+    }
+
+    function _interpolateColor(c1, c2, frac) {
+        // Simple hex interpolation
+        const h2r = c => parseInt(c.slice(1, 3), 16);
+        const h2g = c => parseInt(c.slice(3, 5), 16);
+        const h2b = c => parseInt(c.slice(5, 7), 16);
+        try {
+            const r = Math.round(h2r(c1) + (h2r(c2) - h2r(c1)) * frac);
+            const g = Math.round(h2g(c1) + (h2g(c2) - h2g(c1)) * frac);
+            const b = Math.round(h2b(c1) + (h2b(c2) - h2b(c1)) * frac);
+            return `rgb(${r},${g},${b})`;
+        } catch (e) {
+            return c1;
+        }
+    }
+
+    // ========================================================================
     // Main render function
     // ========================================================================
 
@@ -223,7 +537,11 @@
 
         // Traces
         (spec.traces || []).forEach((t, ti) => {
-            if (!t.x || !t.y) return;
+            // Dict traces — special chart types without x/y arrays
+            if (!t.x || !t.y) {
+                _renderDictTrace(svg, t, ti, theme, ml, mt, pw, ph, W, H, spec);
+                return;
+            }
             const color = t.color || theme.colors[ti % theme.colors.length];
             const n = Math.min(t.x.length, t.y.length);
 
