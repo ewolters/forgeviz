@@ -1114,6 +1114,15 @@
             bar.appendChild(themeBtn);
         }
 
+        // Style panel
+        const styleBtn = document.createElement('button');
+        styleBtn.textContent = 'Style';
+        styleBtn.style.cssText = btnStyle;
+        styleBtn.addEventListener('click', function() {
+            FV.openStylePanel(container, options.onStyleApply);
+        });
+        bar.appendChild(styleBtn);
+
         // Fullscreen toggle
         const fsBtn = document.createElement('button');
         fsBtn.textContent = 'Expand';
@@ -1277,6 +1286,165 @@
     };
 
     // ────────────────────────────────────────────────────────────────────
+    // Style Panel — visible color/title/axis editor
+    // ────────────────────────────────────────────────────────────────────
+
+    FV.openStylePanel = function(container, onApply) {
+        // Remove existing
+        var existing = container.querySelector('.fv-style-panel');
+        if (existing) { existing.remove(); return; }
+
+        var spec = container._currentSpec;
+        if (!spec) return;
+
+        var PALETTE = [
+            '#4a9f6e','#e8c547','#4dc9c0','#a78bfa','#f472b6',
+            '#fb923c','#60a5fa','#f87171','#06b6d4','#84cc16',
+            '#ef4444','#22c55e','#f59e0b','#3b82f6','#8b5cf6',
+            '#ffffff','#e2e8f0','#94a3b8','#64748b','#000000',
+        ];
+
+        var BG_OPTIONS = [
+            { label: 'Dark', value: '#0a0f0a' },
+            { label: 'Slate', value: '#1e293b' },
+            { label: 'White', value: '#ffffff' },
+            { label: 'Cream', value: '#f5f0eb' },
+        ];
+
+        container.style.position = 'relative';
+
+        var panel = document.createElement('div');
+        panel.className = 'fv-style-panel';
+        panel.style.cssText = 'position:absolute;top:4px;right:4px;z-index:1002;background:#111611;border:1px solid rgba(74,159,110,0.25);border-radius:4px;padding:10px 12px;width:220px;font-family:Inter,system-ui,sans-serif;box-shadow:0 4px 16px rgba(0,0,0,0.6);';
+
+        // Header
+        panel.innerHTML = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;"><span style="font:700 11px/1 sans-serif;color:#9aaa9a;text-transform:uppercase;letter-spacing:0.1em;">Style</span><span class="fv-style-close" style="cursor:pointer;color:#7a8f7a;font-size:14px;">&times;</span></div>';
+
+        // Title input
+        var titleVal = (spec.title || '');
+        panel.innerHTML += '<div style="margin-bottom:8px;"><label style="font:600 9px/1 sans-serif;color:#7a8f7a;text-transform:uppercase;letter-spacing:0.08em;display:block;margin-bottom:3px;">Title</label><input class="fv-style-title" type="text" value="' + titleVal + '" placeholder="Chart title" style="width:100%;background:#0a0f0a;border:1px solid rgba(74,159,110,0.15);color:#e8efe8;padding:4px 6px;border-radius:2px;font:12px/1 Inter,system-ui,sans-serif;"></div>';
+
+        // X axis label
+        var xLabel = (spec.x_axis && spec.x_axis.label) || '';
+        panel.innerHTML += '<div style="margin-bottom:8px;display:flex;gap:6px;"><div style="flex:1;"><label style="font:600 9px/1 sans-serif;color:#7a8f7a;text-transform:uppercase;letter-spacing:0.08em;display:block;margin-bottom:3px;">X Axis</label><input class="fv-style-xaxis" type="text" value="' + xLabel + '" placeholder="X label" style="width:100%;background:#0a0f0a;border:1px solid rgba(74,159,110,0.15);color:#e8efe8;padding:4px 6px;border-radius:2px;font:11px/1 Inter,system-ui,sans-serif;"></div>';
+
+        // Y axis label
+        var yLabel = (spec.y_axis && spec.y_axis.label) || '';
+        panel.innerHTML += '<div style="flex:1;"><label style="font:600 9px/1 sans-serif;color:#7a8f7a;text-transform:uppercase;letter-spacing:0.08em;display:block;margin-bottom:3px;">Y Axis</label><input class="fv-style-yaxis" type="text" value="' + yLabel + '" placeholder="Y label" style="width:100%;background:#0a0f0a;border:1px solid rgba(74,159,110,0.15);color:#e8efe8;padding:4px 6px;border-radius:2px;font:11px/1 Inter,system-ui,sans-serif;"></div></div>';
+
+        // Trace colors
+        var traces = spec.traces || [];
+        var traceHtml = '<div style="margin-bottom:8px;"><label style="font:600 9px/1 sans-serif;color:#7a8f7a;text-transform:uppercase;letter-spacing:0.08em;display:block;margin-bottom:4px;">Trace Colors</label>';
+        traces.forEach(function(t, i) {
+            if (t.type === 'pie' || t.type === 'donut' || t.type === 'heatmap') return;
+            var currentColor = t.color || '#4a9f6e';
+            traceHtml += '<div style="display:flex;align-items:center;gap:6px;margin-bottom:3px;"><span style="font:10px/1 monospace;color:#7a8f7a;min-width:50px;">' + (t.name || 'Trace ' + (i+1)) + '</span><div class="fv-style-trace-swatches" data-trace="' + i + '" style="display:flex;gap:2px;flex-wrap:wrap;">';
+            PALETTE.forEach(function(c) {
+                var sel = c.toLowerCase() === currentColor.toLowerCase() ? 'outline:2px solid #e8efe8;outline-offset:1px;' : '';
+                traceHtml += '<div data-color="' + c + '" style="width:14px;height:14px;border-radius:2px;cursor:pointer;background:' + c + ';border:1px solid rgba(255,255,255,0.08);' + sel + '"></div>';
+            });
+            traceHtml += '</div></div>';
+        });
+        traceHtml += '</div>';
+        panel.innerHTML += traceHtml;
+
+        // Background
+        var bgHtml = '<div style="margin-bottom:8px;"><label style="font:600 9px/1 sans-serif;color:#7a8f7a;text-transform:uppercase;letter-spacing:0.08em;display:block;margin-bottom:4px;">Background</label><div class="fv-style-bg-options" style="display:flex;gap:4px;">';
+        BG_OPTIONS.forEach(function(opt) {
+            var border = opt.value === '#ffffff' ? '1px solid rgba(0,0,0,0.2)' : '1px solid rgba(255,255,255,0.1)';
+            bgHtml += '<div data-bg="' + opt.value + '" style="display:flex;flex-direction:column;align-items:center;gap:2px;cursor:pointer;"><div style="width:28px;height:18px;border-radius:2px;background:' + opt.value + ';border:' + border + ';"></div><span style="font:9px/1 sans-serif;color:#7a8f7a;">' + opt.label + '</span></div>';
+        });
+        bgHtml += '</div></div>';
+        panel.innerHTML += bgHtml;
+
+        // Apply button
+        panel.innerHTML += '<button class="fv-style-apply" style="width:100%;padding:6px;font:700 10px/1 sans-serif;text-transform:uppercase;letter-spacing:0.1em;background:rgba(74,159,110,0.15);border:1px solid rgba(74,159,110,0.3);color:#4a9f6e;border-radius:2px;cursor:pointer;">Apply</button>';
+
+        container.appendChild(panel);
+
+        // ── Wire interactions ──
+
+        // Close
+        panel.querySelector('.fv-style-close').addEventListener('click', function() { panel.remove(); });
+
+        // Trace color swatches
+        panel.querySelectorAll('.fv-style-trace-swatches').forEach(function(group) {
+            group.querySelectorAll('[data-color]').forEach(function(swatch) {
+                swatch.addEventListener('click', function() {
+                    // Deselect siblings
+                    group.querySelectorAll('[data-color]').forEach(function(s) { s.style.outline = ''; });
+                    swatch.style.outline = '2px solid #e8efe8';
+                    swatch.style.outlineOffset = '1px';
+                });
+            });
+        });
+
+        // Apply
+        panel.querySelector('.fv-style-apply').addEventListener('click', function() {
+            // Gather values
+            var newTitle = panel.querySelector('.fv-style-title').value;
+            var newXAxis = panel.querySelector('.fv-style-xaxis').value;
+            var newYAxis = panel.querySelector('.fv-style-yaxis').value;
+
+            // Trace colors
+            panel.querySelectorAll('.fv-style-trace-swatches').forEach(function(group) {
+                var traceIdx = parseInt(group.dataset.trace);
+                var selected = group.querySelector('[data-color][style*="outline: 2px"], [data-color][style*="outline:2px"]');
+                if (selected && spec.traces[traceIdx]) {
+                    spec.traces[traceIdx].color = selected.dataset.color;
+                }
+            });
+
+            // Background
+            var selectedBg = panel.querySelector('.fv-style-bg-options [data-bg][style*="outline"]');
+            if (!selectedBg) {
+                // Check for click state
+                panel.querySelectorAll('.fv-style-bg-options [data-bg]').forEach(function(el) {
+                    if (el._selected) selectedBg = el;
+                });
+            }
+
+            // Update spec
+            spec.title = newTitle;
+            if (!spec.x_axis) spec.x_axis = {};
+            if (!spec.y_axis) spec.y_axis = {};
+            spec.x_axis.label = newXAxis;
+            spec.y_axis.label = newYAxis;
+
+            if (selectedBg) {
+                var bgColor = selectedBg.dataset.bg;
+                // Pick matching theme
+                if (bgColor === '#ffffff' || bgColor === '#f5f0eb') {
+                    spec.theme = bgColor === '#f5f0eb' ? 'sandstone' : 'light';
+                } else if (bgColor === '#1e293b') {
+                    spec.theme = 'nordic';
+                } else {
+                    spec.theme = 'svend_dark';
+                }
+            }
+
+            // Re-render
+            panel.remove();
+            FV.render(container, spec, container._renderOptions || {});
+
+            if (onApply) onApply(spec);
+        });
+
+        // Background option click
+        panel.querySelectorAll('.fv-style-bg-options [data-bg]').forEach(function(opt) {
+            opt.addEventListener('click', function() {
+                panel.querySelectorAll('.fv-style-bg-options [data-bg]').forEach(function(o) {
+                    o.querySelector('div').style.outline = '';
+                    o._selected = false;
+                });
+                opt.querySelector('div').style.outline = '2px solid #4a9f6e';
+                opt.querySelector('div').style.outlineOffset = '1px';
+                opt._selected = true;
+            });
+        });
+    };
+
+    // ────────────────────────────────────────────────────────────────────
     // Data Table — show underlying data on hover/click
     // ────────────────────────────────────────────────────────────────────
 
@@ -1324,6 +1492,7 @@
 
     FV.render = function(container, spec, options) {
         container._currentSpec = spec;
+        container._renderOptions = options;
         const instance = _originalRender(container, spec, options);
 
         // Auto-enable utilities if options say so
@@ -1342,6 +1511,9 @@
         }
         if (options.showTable) {
             FV.showDataTable(container, spec);
+        }
+        if (options.stylePanel) {
+            FV.openStylePanel(container, options.onStyleApply);
         }
 
         return instance;
