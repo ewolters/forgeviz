@@ -1329,11 +1329,9 @@
         var spec = container._currentSpec;
         if (!spec) return;
 
-        container.style.position = 'relative';
-
         var panel = document.createElement('div');
         panel.className = 'fv-style-panel';
-        panel.style.cssText = 'position:absolute;top:4px;right:4px;z-index:1002;background:#111611;border:1px solid rgba(74,159,110,0.25);border-radius:4px;padding:10px 12px;width:220px;font-family:Inter,system-ui,sans-serif;box-shadow:0 4px 16px rgba(0,0,0,0.6);';
+        panel.style.cssText = 'background:#111611;border:1px solid rgba(74,159,110,0.25);border-radius:4px;padding:10px 12px;font-family:Inter,system-ui,sans-serif;margin-top:4px;';
 
         var inputStyle = 'width:100%;background:#0a0f0a;border:1px solid rgba(74,159,110,0.15);color:#e8efe8;padding:4px 6px;border-radius:2px;font:12px/1 Inter,system-ui,sans-serif;box-sizing:border-box;';
         var labelStyle = 'font:600 9px/1 sans-serif;color:#7a8f7a;text-transform:uppercase;letter-spacing:0.08em;display:block;margin-bottom:3px;';
@@ -1367,36 +1365,28 @@
         var axisHex = '#333333';
         if (axisColor.indexOf('#') === 0) axisHex = axisColor;
 
+        var colorInputStyle = 'width:32px;height:22px;border:1px solid rgba(74,159,110,0.2);border-radius:2px;background:none;cursor:pointer;padding:0;';
+        var colorLabelStyle = 'font:600 9px/1 sans-serif;color:#7a8f7a;text-transform:uppercase;letter-spacing:0.05em;';
+        var colorCellStyle = 'display:flex;flex-direction:column;align-items:center;gap:3px;';
+
         var html = '';
 
-        // Header
-        html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;"><span style="font:700 11px/1 sans-serif;color:#9aaa9a;text-transform:uppercase;letter-spacing:0.1em;">Style</span><span class="fv-style-close" style="cursor:pointer;color:#7a8f7a;font-size:16px;line-height:1;">&times;</span></div>';
-
-        // Title
-        html += '<div style="' + rowStyle + '"><label style="' + labelStyle + '">Title</label><input class="fv-style-title" type="text" value="' + titleVal + '" placeholder="Chart title" style="' + inputStyle + '"></div>';
-
-        // X / Y axis labels — side by side
-        html += '<div style="' + rowStyle + 'display:flex;gap:6px;">';
-        html += '<div style="flex:1;"><label style="' + labelStyle + '">X Axis</label><input class="fv-style-xaxis" type="text" value="' + xLabel + '" placeholder="X label" style="' + inputStyle + 'font-size:11px;"></div>';
-        html += '<div style="flex:1;"><label style="' + labelStyle + '">Y Axis</label><input class="fv-style-yaxis" type="text" value="' + yLabel + '" placeholder="Y label" style="' + inputStyle + 'font-size:11px;"></div>';
+        // Row 1: text fields — Title, X, Y
+        html += '<div style="display:flex;gap:6px;margin-bottom:6px;align-items:flex-end;">';
+        html += '<div style="flex:2;"><label style="' + labelStyle + '">Title</label><input class="fv-style-title" type="text" value="' + titleVal + '" placeholder="Chart title" style="' + inputStyle + '"></div>';
+        html += '<div style="flex:1;"><label style="' + labelStyle + '">X Axis</label><input class="fv-style-xaxis" type="text" value="' + xLabel + '" placeholder="X" style="' + inputStyle + 'font-size:11px;"></div>';
+        html += '<div style="flex:1;"><label style="' + labelStyle + '">Y Axis</label><input class="fv-style-yaxis" type="text" value="' + yLabel + '" placeholder="Y" style="' + inputStyle + 'font-size:11px;"></div>';
         html += '</div>';
 
-        // ── Color pickers — native <input type="color"> ──
-
-        // Trace color
-        html += '<div style="' + colorRowStyle + '"><label style="' + labelStyle + 'margin:0;flex:1;">Trace Color</label><input class="fv-style-trace-color" type="color" value="' + traceColor + '" style="width:36px;height:24px;border:1px solid rgba(74,159,110,0.2);border-radius:2px;background:none;cursor:pointer;padding:0;"></div>';
-
-        // Background color
-        html += '<div style="' + colorRowStyle + '"><label style="' + labelStyle + 'margin:0;flex:1;">Background</label><input class="fv-style-bg-color" type="color" value="' + bgColor + '" style="width:36px;height:24px;border:1px solid rgba(74,159,110,0.2);border-radius:2px;background:none;cursor:pointer;padding:0;"></div>';
-
-        // Grid color
-        html += '<div style="' + colorRowStyle + '"><label style="' + labelStyle + 'margin:0;flex:1;">Grid</label><input class="fv-style-grid-color" type="color" value="' + gridHex + '" style="width:36px;height:24px;border:1px solid rgba(74,159,110,0.2);border-radius:2px;background:none;cursor:pointer;padding:0;"></div>';
-
-        // Axis/border color
-        html += '<div style="' + colorRowStyle + '"><label style="' + labelStyle + 'margin:0;flex:1;">Axis / Border</label><input class="fv-style-axis-color" type="color" value="' + axisHex + '" style="width:36px;height:24px;border:1px solid rgba(74,159,110,0.2);border-radius:2px;background:none;cursor:pointer;padding:0;"></div>';
-
-        // Apply button
-        html += '<button class="fv-style-apply" style="width:100%;padding:6px;margin-top:4px;font:700 10px/1 sans-serif;text-transform:uppercase;letter-spacing:0.1em;background:rgba(74,159,110,0.15);border:1px solid rgba(74,159,110,0.3);color:#4a9f6e;border-radius:2px;cursor:pointer;">Apply</button>';
+        // Row 2: color pickers — all in one horizontal row
+        html += '<div style="display:flex;gap:10px;align-items:flex-start;margin-bottom:6px;">';
+        html += '<div style="' + colorCellStyle + '"><label style="' + colorLabelStyle + '">Trace</label><input class="fv-style-trace-color" type="color" value="' + traceColor + '" style="' + colorInputStyle + '"></div>';
+        html += '<div style="' + colorCellStyle + '"><label style="' + colorLabelStyle + '">Background</label><input class="fv-style-bg-color" type="color" value="' + bgColor + '" style="' + colorInputStyle + '"></div>';
+        html += '<div style="' + colorCellStyle + '"><label style="' + colorLabelStyle + '">Grid</label><input class="fv-style-grid-color" type="color" value="' + gridHex + '" style="' + colorInputStyle + '"></div>';
+        html += '<div style="' + colorCellStyle + '"><label style="' + colorLabelStyle + '">Axis</label><input class="fv-style-axis-color" type="color" value="' + axisHex + '" style="' + colorInputStyle + '"></div>';
+        html += '<button class="fv-style-apply" style="padding:4px 12px;font:700 10px/1 sans-serif;text-transform:uppercase;letter-spacing:0.08em;background:rgba(74,159,110,0.15);border:1px solid rgba(74,159,110,0.3);color:#4a9f6e;border-radius:2px;cursor:pointer;align-self:flex-end;margin-bottom:1px;">Apply</button>';
+        html += '<span class="fv-style-close" style="cursor:pointer;color:#7a8f7a;font-size:14px;line-height:1;align-self:flex-start;margin-left:auto;">&times;</span>';
+        html += '</div>';
 
         panel.innerHTML = html;
         container.appendChild(panel);
