@@ -150,6 +150,20 @@
             _renderBullet(svg, t, spec, ml, mt, pw, ph);
         } else if (type === 'parallel') {
             _renderParallel(svg, t, colors, ml, mt, pw, ph);
+        } else if (type === 'treemap') {
+            _renderTreemap(svg, t, colors, ml, mt, pw, ph, theme);
+        } else if (type === 'radar') {
+            _renderRadar(svg, t, colors, ml, mt, pw, ph, theme);
+        } else if (type === 'violin') {
+            _renderViolin(svg, t, ti, theme, ml, mt, pw, ph, spec);
+        } else if (type === 'sankey') {
+            _renderSankey(svg, t, colors, ml, mt, pw, ph, theme);
+        } else if (type === 'candlestick') {
+            _renderCandlestick(svg, t, theme, ml, mt, pw, ph);
+        } else if (type === 'waterfall') {
+            _renderWaterfall(svg, t, colors, ml, mt, pw, ph, theme);
+        } else if (type === 'funnel') {
+            _renderFunnel(svg, t, colors, ml, mt, pw, ph, theme);
         }
     }
 
@@ -425,6 +439,443 @@
                 opacity: isHighlight ? 1 : 0.4,
             }));
         }
+    }
+
+    // ========================================================================
+    // Treemap renderer
+    // ========================================================================
+
+    function _renderTreemap(svg, t, colors, ml, mt, pw, ph, theme) {
+        const rects = t.rectangles || [];
+        if (!rects.length) return;
+
+        rects.forEach(function(r, i) {
+            const rx = ml + r.x * pw;
+            const ry = mt + r.y * ph;
+            const rw = r.w * pw;
+            const rh = r.h * ph;
+            const color = r.color || colors[i % colors.length];
+            const depth = r.depth || 0;
+
+            // Cell background
+            svg.appendChild(svgEl('rect', {
+                x: rx + 1, y: ry + 1, width: Math.max(0, rw - 2), height: Math.max(0, rh - 2),
+                fill: color, opacity: 0.7 + depth * 0.1, stroke: theme.bg, 'stroke-width': 2, rx: 2,
+            }));
+
+            // Label (only if cell is large enough)
+            if (rw > 40 && rh > 20) {
+                var label = r.label || '';
+                var valText = r.value !== undefined ? '\n' + (typeof r.value === 'number' ? r.value.toFixed(0) : r.value) : '';
+                svg.appendChild(svgEl('text', {
+                    x: rx + rw / 2, y: ry + rh / 2 - 4,
+                    fill: '#e8efe8', 'text-anchor': 'middle', 'dominant-baseline': 'middle',
+                    'font-size': Math.min(11, rw / label.length * 1.2), 'font-family': theme.font,
+                }, label));
+                if (rw > 50 && rh > 30 && r.value !== undefined) {
+                    svg.appendChild(svgEl('text', {
+                        x: rx + rw / 2, y: ry + rh / 2 + 10,
+                        fill: theme.textSecondary, 'text-anchor': 'middle', 'dominant-baseline': 'middle',
+                        'font-size': 9, 'font-family': theme.font,
+                    }, typeof r.value === 'number' ? r.value.toFixed(0) : String(r.value)));
+                }
+            }
+        });
+    }
+
+    // ========================================================================
+    // Radar / Spider chart renderer
+    // ========================================================================
+
+    function _renderRadar(svg, t, colors, ml, mt, pw, ph, theme) {
+        const categories = t.categories || [];
+        const series = t.series || [];
+        const n = categories.length;
+        if (n < 3) return;
+
+        const cx = ml + pw / 2, cy = mt + ph / 2;
+        const R = Math.min(pw, ph) / 2 * 0.8;
+        const angleStep = (2 * Math.PI) / n;
+        const startAngle = -Math.PI / 2; // Start from top
+
+        // Grid rings (5 levels)
+        for (var level = 1; level <= 5; level++) {
+            var ringR = R * level / 5;
+            var ringPts = [];
+            for (var j = 0; j < n; j++) {
+                var angle = startAngle + j * angleStep;
+                ringPts.push((cx + ringR * Math.cos(angle)).toFixed(1) + ',' + (cy + ringR * Math.sin(angle)).toFixed(1));
+            }
+            svg.appendChild(svgEl('polygon', {
+                points: ringPts.join(' '), fill: 'none',
+                stroke: theme.grid, 'stroke-width': 0.5,
+            }));
+        }
+
+        // Axis lines + category labels
+        for (var j = 0; j < n; j++) {
+            var angle = startAngle + j * angleStep;
+            var ax = cx + R * Math.cos(angle);
+            var ay = cy + R * Math.sin(angle);
+            svg.appendChild(svgEl('line', {
+                x1: cx, y1: cy, x2: ax, y2: ay,
+                stroke: theme.grid, 'stroke-width': 0.5,
+            }));
+            // Label
+            var lx = cx + (R + 14) * Math.cos(angle);
+            var ly = cy + (R + 14) * Math.sin(angle);
+            var anchor = Math.abs(Math.cos(angle)) < 0.1 ? 'middle' : (Math.cos(angle) > 0 ? 'start' : 'end');
+            svg.appendChild(svgEl('text', {
+                x: lx, y: ly + 3, fill: theme.textSecondary,
+                'text-anchor': anchor, 'font-size': 9, 'font-family': theme.font,
+            }, categories[j]));
+        }
+
+        // Data series polygons
+        series.forEach(function(s, si) {
+            var sColor = s.color || colors[si % colors.length];
+            var values = s.values || [];
+            var maxVal = s.max_val || Math.max.apply(null, values) || 1;
+            var pts = [];
+            for (var j = 0; j < n; j++) {
+                var angle = startAngle + j * angleStep;
+                var val = (values[j] || 0) / maxVal;
+                var px = cx + R * val * Math.cos(angle);
+                var py = cy + R * val * Math.sin(angle);
+                pts.push(px.toFixed(1) + ',' + py.toFixed(1));
+            }
+            // Filled polygon
+            svg.appendChild(svgEl('polygon', {
+                points: pts.join(' '), fill: sColor, opacity: 0.15,
+                stroke: sColor, 'stroke-width': 1.5,
+            }));
+            // Data points
+            for (var j = 0; j < n; j++) {
+                var angle = startAngle + j * angleStep;
+                var val = (values[j] || 0) / maxVal;
+                svg.appendChild(svgEl('circle', {
+                    cx: (cx + R * val * Math.cos(angle)).toFixed(1),
+                    cy: (cy + R * val * Math.sin(angle)).toFixed(1),
+                    r: 3, fill: sColor,
+                }));
+            }
+        });
+    }
+
+    // ========================================================================
+    // Violin plot renderer
+    // ========================================================================
+
+    function _renderViolin(svg, t, ti, theme, ml, mt, pw, ph, spec) {
+        var violins = (spec.traces || []).filter(function(tr) { return tr.type === 'violin'; });
+        var nViolins = Math.max(violins.length, 1);
+        var idx = violins.indexOf(t);
+        var violinIdx = idx >= 0 ? idx : ti;
+
+        var gap = pw / nViolins;
+        var cx = ml + gap * violinIdx + gap / 2;
+        var maxW = Math.min(80, gap * 0.7) / 2;
+
+        var density = t.density || [];
+        var yValues = t.y_range || [];
+        var q1 = t.q1, median = t.median, q3 = t.q3;
+
+        if (!density.length || !yValues.length) return;
+
+        // Scale y to plot area
+        var allY = yValues.slice();
+        if (q1 !== undefined) allY.push(q1, median, q3);
+        var yMin = Math.min.apply(null, allY) - 1;
+        var yMax = Math.max.apply(null, allY) + 1;
+        var sy = function(v) { return mt + ph - ((v - yMin) / (yMax - yMin)) * ph; };
+
+        // Max density for width scaling
+        var maxDensity = Math.max.apply(null, density) || 1;
+
+        var color = t.color || theme.colors[violinIdx % theme.colors.length];
+
+        // Build mirrored path
+        var rightPts = [], leftPts = [];
+        for (var i = 0; i < density.length; i++) {
+            var y = sy(yValues[i]);
+            var w = (density[i] / maxDensity) * maxW;
+            rightPts.push((cx + w).toFixed(1) + ',' + y.toFixed(1));
+            leftPts.unshift((cx - w).toFixed(1) + ',' + y.toFixed(1));
+        }
+        var allPts = rightPts.concat(leftPts);
+        svg.appendChild(svgEl('polygon', {
+            points: allPts.join(' '), fill: color, opacity: 0.25,
+            stroke: color, 'stroke-width': 1,
+        }));
+
+        // Quartile indicators
+        if (q1 !== undefined && median !== undefined && q3 !== undefined) {
+            // IQR box
+            svg.appendChild(svgEl('rect', {
+                x: cx - 4, y: sy(q3), width: 8, height: Math.max(0, sy(q1) - sy(q3)),
+                fill: color, opacity: 0.6, rx: 2,
+            }));
+            // Median line
+            svg.appendChild(svgEl('line', {
+                x1: cx - 6, x2: cx + 6, y1: sy(median), y2: sy(median),
+                stroke: '#e8efe8', 'stroke-width': 2,
+            }));
+        }
+
+        // Label
+        if (t.name) {
+            svg.appendChild(svgEl('text', {
+                x: cx, y: mt + ph + 15, fill: theme.textSecondary,
+                'text-anchor': 'middle', 'font-size': 10, 'font-family': theme.font,
+            }, t.name));
+        }
+    }
+
+    // ========================================================================
+    // Sankey diagram renderer
+    // ========================================================================
+
+    function _renderSankey(svg, t, colors, ml, mt, pw, ph, theme) {
+        var nodes = t.nodes || [];
+        var links = t.links || [];
+        if (!nodes.length || !links.length) return;
+
+        var nodeW = 16;
+        var nodePad = 8;
+
+        // Use pre-computed positions from Python
+        nodes.forEach(function(node, i) {
+            var nx = ml + node.x * pw;
+            var ny = mt + node.y * ph;
+            var nh = Math.max(4, node.h * ph);
+            var color = node.color || colors[i % colors.length];
+
+            // Node rectangle
+            svg.appendChild(svgEl('rect', {
+                x: nx, y: ny, width: nodeW, height: nh,
+                fill: color, stroke: 'none', rx: 2,
+            }));
+
+            // Label
+            var labelX = node.x < 0.5 ? nx + nodeW + 6 : nx - 6;
+            var anchor = node.x < 0.5 ? 'start' : 'end';
+            svg.appendChild(svgEl('text', {
+                x: labelX, y: ny + nh / 2 + 3,
+                fill: theme.text, 'text-anchor': anchor,
+                'font-size': 10, 'font-family': theme.font,
+            }, node.name || ''));
+        });
+
+        // Links as curved paths
+        links.forEach(function(link) {
+            var src = nodes[link.source] || {};
+            var tgt = nodes[link.target] || {};
+            var srcX = ml + (src.x || 0) * pw + nodeW;
+            var srcY = mt + (link.sy || src.y || 0) * ph;
+            var tgtX = ml + (tgt.x || 0) * pw;
+            var tgtY = mt + (link.ty || tgt.y || 0) * ph;
+            var linkH = Math.max(2, (link.value || 1) / (t.max_value || 1) * ph * 0.15);
+
+            var midX = (srcX + tgtX) / 2;
+            var d = 'M' + srcX + ',' + srcY +
+                    ' C' + midX + ',' + srcY + ' ' + midX + ',' + tgtY + ' ' + tgtX + ',' + tgtY +
+                    ' L' + tgtX + ',' + (tgtY + linkH) +
+                    ' C' + midX + ',' + (tgtY + linkH) + ' ' + midX + ',' + (srcY + linkH) + ' ' + srcX + ',' + (srcY + linkH) +
+                    ' Z';
+
+            var color = link.color || colors[link.source % colors.length];
+            svg.appendChild(svgEl('path', {
+                d: d, fill: color, opacity: 0.35, stroke: 'none',
+            }));
+        });
+    }
+
+    // ========================================================================
+    // Candlestick / OHLC renderer
+    // ========================================================================
+
+    function _renderCandlestick(svg, t, theme, ml, mt, pw, ph) {
+        var candles = t.candles || [];
+        if (!candles.length) return;
+
+        var n = candles.length;
+        var candleW = Math.min(20, Math.max(3, pw / n * 0.65));
+
+        // Find y range
+        var yMin = Infinity, yMax = -Infinity;
+        candles.forEach(function(c) {
+            if (c.low < yMin) yMin = c.low;
+            if (c.high > yMax) yMax = c.high;
+        });
+        var yRange = yMax - yMin || 1;
+        yMin -= yRange * 0.05;
+        yMax += yRange * 0.05;
+
+        var sy = function(v) { return mt + ph - ((v - yMin) / (yMax - yMin)) * ph; };
+        var gap = pw / n;
+
+        candles.forEach(function(c, i) {
+            var cx = ml + gap * i + gap / 2;
+            var bullish = c.close >= c.open;
+            var bodyColor = bullish ? '#4a9f6e' : '#ef4444';
+            var bodyTop = sy(Math.max(c.open, c.close));
+            var bodyBottom = sy(Math.min(c.open, c.close));
+            var bodyH = Math.max(1, bodyBottom - bodyTop);
+
+            // Wick (high-low line)
+            svg.appendChild(svgEl('line', {
+                x1: cx, x2: cx, y1: sy(c.high), y2: sy(c.low),
+                stroke: bodyColor, 'stroke-width': 1,
+            }));
+
+            // Body
+            svg.appendChild(svgEl('rect', {
+                x: cx - candleW / 2, y: bodyTop,
+                width: candleW, height: bodyH,
+                fill: bullish ? bodyColor : bodyColor,
+                stroke: bodyColor, 'stroke-width': 0.5,
+                opacity: bullish ? 0.8 : 0.9,
+            }));
+        });
+
+        // Y-axis ticks
+        var nTicks = 6;
+        for (var i = 0; i <= nTicks; i++) {
+            var v = yMin + (yMax - yMin) * i / nTicks;
+            svg.appendChild(svgEl('text', {
+                x: ml - 5, y: sy(v) + 3, fill: theme.textSecondary,
+                'text-anchor': 'end', 'font-size': 9, 'font-family': theme.font,
+            }, v.toFixed(2)));
+        }
+    }
+
+    // ========================================================================
+    // Waterfall chart renderer
+    // ========================================================================
+
+    function _renderWaterfall(svg, t, colors, ml, mt, pw, ph, theme) {
+        var bars = t.bars || [];
+        if (!bars.length) return;
+
+        var n = bars.length;
+        var barW = Math.min(60, Math.max(8, pw / n * 0.65));
+
+        // Find y range
+        var yMin = 0, yMax = 0;
+        bars.forEach(function(b) {
+            var lo = Math.min(b.start || 0, b.end || 0);
+            var hi = Math.max(b.start || 0, b.end || 0);
+            if (lo < yMin) yMin = lo;
+            if (hi > yMax) yMax = hi;
+        });
+        var yRange = yMax - yMin || 1;
+        yMin -= yRange * 0.1;
+        yMax += yRange * 0.1;
+
+        var sy = function(v) { return mt + ph - ((v - yMin) / (yMax - yMin)) * ph; };
+        var gap = pw / n;
+
+        bars.forEach(function(b, i) {
+            var bx = ml + gap * i + gap / 2 - barW / 2;
+            var start = b.start || 0;
+            var end = b.end || 0;
+            var isTotal = b.is_total || false;
+            var positive = end >= start;
+
+            var barTop = sy(Math.max(start, end));
+            var barBottom = sy(Math.min(start, end));
+            var barH = Math.max(1, barBottom - barTop);
+
+            var color = isTotal ? (theme.accent || '#4a9f6e') :
+                        (positive ? '#4a9f6e' : '#ef4444');
+
+            svg.appendChild(svgEl('rect', {
+                x: bx, y: barTop, width: barW, height: barH,
+                fill: color, opacity: 0.8, rx: 2,
+            }));
+
+            // Connector line to next bar
+            if (i < n - 1 && !isTotal) {
+                var nextStart = bars[i + 1].start || 0;
+                svg.appendChild(svgEl('line', {
+                    x1: bx + barW, x2: ml + gap * (i + 1) + gap / 2 - barW / 2,
+                    y1: sy(end), y2: sy(end),
+                    stroke: theme.textSecondary, 'stroke-width': 0.5,
+                    'stroke-dasharray': '3,2',
+                }));
+            }
+
+            // Value label
+            var valText = (end - start) >= 0 ? '+' + (end - start).toFixed(0) : (end - start).toFixed(0);
+            if (isTotal) valText = end.toFixed(0);
+            svg.appendChild(svgEl('text', {
+                x: bx + barW / 2, y: barTop - 5,
+                fill: theme.textSecondary, 'text-anchor': 'middle',
+                'font-size': 9, 'font-family': theme.font,
+            }, valText));
+
+            // Category label
+            if (b.label) {
+                svg.appendChild(svgEl('text', {
+                    x: bx + barW / 2, y: mt + ph + 14,
+                    fill: theme.textSecondary, 'text-anchor': 'middle',
+                    'font-size': 9, 'font-family': theme.font,
+                }, b.label.length > 8 ? b.label.substring(0, 7) + '…' : b.label));
+            }
+        });
+    }
+
+    // ========================================================================
+    // Funnel chart renderer
+    // ========================================================================
+
+    function _renderFunnel(svg, t, colors, ml, mt, pw, ph, theme) {
+        var stages = t.stages || [];
+        if (!stages.length) return;
+
+        var n = stages.length;
+        var stageH = Math.min(40, ph / n * 0.8);
+        var gap = (ph - n * stageH) / Math.max(1, n - 1);
+        var maxVal = Math.max.apply(null, stages.map(function(s) { return s.value || 0; })) || 1;
+
+        stages.forEach(function(s, i) {
+            var val = s.value || 0;
+            var width = (val / maxVal) * pw * 0.9;
+            var bx = ml + (pw - width) / 2;
+            var by = mt + i * (stageH + gap);
+            var color = s.color || colors[i % colors.length];
+
+            // Trapezoid shape (wider at top, narrower at bottom)
+            var nextWidth = (i < n - 1) ? ((stages[i + 1].value || 0) / maxVal) * pw * 0.9 : width * 0.7;
+            var nextBx = ml + (pw - nextWidth) / 2;
+
+            var d = 'M' + bx + ',' + by +
+                    ' L' + (bx + width) + ',' + by +
+                    ' L' + (nextBx + nextWidth) + ',' + (by + stageH) +
+                    ' L' + nextBx + ',' + (by + stageH) + ' Z';
+
+            svg.appendChild(svgEl('path', {
+                d: d, fill: color, opacity: 0.75, stroke: theme.bg, 'stroke-width': 1,
+            }));
+
+            // Stage label
+            svg.appendChild(svgEl('text', {
+                x: ml + pw / 2, y: by + stageH / 2 + 3,
+                fill: '#e8efe8', 'text-anchor': 'middle', 'font-size': 11,
+                'font-weight': '500', 'font-family': theme.font,
+            }, (s.label || '') + '  ' + val));
+
+            // Conversion rate annotation
+            if (i > 0) {
+                var prevVal = stages[i - 1].value || 1;
+                var pct = ((val / prevVal) * 100).toFixed(0);
+                svg.appendChild(svgEl('text', {
+                    x: ml + pw * 0.95, y: by + 3,
+                    fill: theme.textSecondary, 'text-anchor': 'end',
+                    'font-size': 9, 'font-family': theme.font,
+                }, pct + '%'));
+            }
+        });
     }
 
     function _interpolateColor(c1, c2, frac) {
@@ -1651,6 +2102,133 @@
         }
 
         updateChart();
+    };
+
+})(ForgeViz);
+
+// ========================================================================
+// Trellis / Small Multiples Renderer
+// ========================================================================
+
+(function(FV) {
+    'use strict';
+
+    /**
+     * Render a trellis dashboard — a grid of identical charts with shared axes.
+     *
+     * @param {HTMLElement} container - Parent DOM element.
+     * @param {Object} dashSpec - DashboardSpec JSON (with _trellis_metadata).
+     * @param {Object} [options] - Rendering options.
+     * @param {number} [options.gap=4] - Gap between panels in px.
+     * @param {boolean} [options.crosshair=true] - Synchronized crosshair across panels.
+     * @param {boolean} [options.highlightOnHover=true] - Highlight same x-position on hover.
+     */
+    FV.trellis = function(container, dashSpec, options) {
+        options = options || {};
+        var gap = options.gap || (dashSpec._trellis_metadata && dashSpec._trellis_metadata.gap) || 4;
+        var crosshair = options.crosshair !== false;
+        var highlightOnHover = options.highlightOnHover !== false;
+        var columns = dashSpec.columns || 3;
+        var panels = dashSpec.panels || [];
+        var theme = FV.themes[dashSpec.theme] || FV.themes.svend_dark;
+
+        // Clear container
+        container.innerHTML = '';
+        container.style.position = 'relative';
+
+        // Title
+        if (dashSpec.title) {
+            var titleEl = document.createElement('div');
+            titleEl.textContent = dashSpec.title;
+            titleEl.style.cssText = 'font-family:' + theme.font + ';font-size:16px;font-weight:600;color:' + theme.text + ';margin-bottom:8px;text-align:center;';
+            container.appendChild(titleEl);
+        }
+
+        // Grid wrapper
+        var grid = document.createElement('div');
+        grid.style.cssText = 'display:grid;grid-template-columns:repeat(' + columns + ',1fr);gap:' + gap + 'px;';
+        container.appendChild(grid);
+
+        // Render each panel
+        var panelEls = [];
+        var chartInstances = [];
+
+        panels.forEach(function(panel, idx) {
+            var cell = document.createElement('div');
+            cell.style.cssText = 'position:relative;min-height:0;overflow:hidden;';
+
+            // Compact subtitle (group name)
+            var spec = panel.spec;
+            if (spec.subtitle) {
+                var sub = document.createElement('div');
+                sub.textContent = spec.subtitle;
+                sub.style.cssText = 'font-family:' + theme.font + ';font-size:11px;color:' + theme.textSecondary + ';text-align:center;padding:2px 0 0;';
+                cell.appendChild(sub);
+            }
+
+            // Chart container
+            var chartDiv = document.createElement('div');
+            chartDiv.style.cssText = 'width:100%;';
+            cell.appendChild(chartDiv);
+            grid.appendChild(cell);
+
+            // Render chart without toolbar for compactness
+            var instance = FV.render(chartDiv, spec, { toolbar: false });
+            panelEls.push(chartDiv);
+            chartInstances.push(instance);
+        });
+
+        // Synchronized crosshair across all panels on hover
+        if (crosshair && panelEls.length > 1) {
+            panelEls.forEach(function(el, srcIdx) {
+                var svg = el.querySelector('svg');
+                if (!svg) return;
+
+                svg.addEventListener('mousemove', function(e) {
+                    var rect = svg.getBoundingClientRect();
+                    var relX = (e.clientX - rect.left) / rect.width;
+
+                    panelEls.forEach(function(otherEl, otherIdx) {
+                        if (otherIdx === srcIdx) return;
+                        var otherSvg = otherEl.querySelector('svg');
+                        if (!otherSvg) return;
+
+                        // Remove old crosshair
+                        var old = otherSvg.querySelector('.fv-trellis-xhair');
+                        if (old) old.remove();
+
+                        // Draw vertical crosshair at proportional x
+                        var oRect = otherSvg.getBoundingClientRect();
+                        var px = relX * oRect.width;
+                        var line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                        line.setAttribute('class', 'fv-trellis-xhair');
+                        line.setAttribute('x1', px);
+                        line.setAttribute('x2', px);
+                        line.setAttribute('y1', 0);
+                        line.setAttribute('y2', oRect.height);
+                        line.setAttribute('stroke', theme.textSecondary);
+                        line.setAttribute('stroke-width', '0.5');
+                        line.setAttribute('stroke-dasharray', '3,3');
+                        line.setAttribute('pointer-events', 'none');
+                        otherSvg.appendChild(line);
+                    });
+                });
+
+                svg.addEventListener('mouseleave', function() {
+                    panelEls.forEach(function(otherEl) {
+                        var otherSvg = otherEl.querySelector('svg');
+                        if (!otherSvg) return;
+                        var old = otherSvg.querySelector('.fv-trellis-xhair');
+                        if (old) old.remove();
+                    });
+                });
+            });
+        }
+
+        return {
+            panels: panelEls,
+            instances: chartInstances,
+        };
     };
 
 })(ForgeViz);

@@ -363,3 +363,160 @@ def _render_dict_trace(parts, trace, ti, sx, sy, ml, mt, pw, ph, theme, is_cat, 
                 cx = ml + xi * cell_w
                 cy = mt + ph - yi * cell_h - cell_h
                 parts.append(f'<rect x="{cx:.1f}" y="{cy:.1f}" width="{cell_w + 1:.1f}" height="{cell_h + 1:.1f}" fill="{color}" opacity="0.8"/>')
+
+    elif trace_type == "treemap":
+        rects = trace.get("rectangles", [])
+        for i, r in enumerate(rects):
+            rx = ml + r["x"] * pw
+            ry = mt + r["y"] * ph
+            rw = r["w"] * pw
+            rh = r["h"] * ph
+            color = r.get("color", theme["colors"][i % len(theme["colors"])])
+            parts.append(f'<rect x="{rx + 1:.1f}" y="{ry + 1:.1f}" width="{max(0, rw - 2):.1f}" height="{max(0, rh - 2):.1f}" fill="{color}" opacity="0.7" stroke="{theme["bg"]}" stroke-width="2" rx="2"/>')
+            if rw > 40 and rh > 20:
+                label = escape(r.get("label", "")[:12])
+                parts.append(f'<text x="{rx + rw / 2:.1f}" y="{ry + rh / 2:.1f}" fill="{theme["text"]}" text-anchor="middle" dominant-baseline="middle" font-size="{min(11, rw / max(len(label), 1) * 1.2):.0f}">{label}</text>')
+
+    elif trace_type == "radar":
+        import math
+        categories = trace.get("categories", [])
+        series_list = trace.get("series", [])
+        n = len(categories)
+        if n >= 3:
+            center_x = ml + pw / 2
+            center_y = mt + ph / 2
+            radius = min(pw, ph) / 2 * 0.8
+            angle_step = 2 * math.pi / n
+            start_angle = -math.pi / 2
+            # Grid rings
+            for level in range(1, 6):
+                ring_r = radius * level / 5
+                pts = " ".join(f"{center_x + ring_r * math.cos(start_angle + j * angle_step):.1f},{center_y + ring_r * math.sin(start_angle + j * angle_step):.1f}" for j in range(n))
+                parts.append(f'<polygon points="{pts}" fill="none" stroke="{theme["grid"]}" stroke-width="0.5"/>')
+            # Axis lines + labels
+            for j in range(n):
+                angle = start_angle + j * angle_step
+                ax = center_x + radius * math.cos(angle)
+                ay = center_y + radius * math.sin(angle)
+                parts.append(f'<line x1="{center_x:.1f}" y1="{center_y:.1f}" x2="{ax:.1f}" y2="{ay:.1f}" stroke="{theme["grid"]}" stroke-width="0.5"/>')
+                lx = center_x + (radius + 14) * math.cos(angle)
+                ly = center_y + (radius + 14) * math.sin(angle)
+                anchor = "middle" if abs(math.cos(angle)) < 0.1 else ("start" if math.cos(angle) > 0 else "end")
+                parts.append(f'<text x="{lx:.1f}" y="{ly + 3:.1f}" fill="{theme["text_secondary"]}" text-anchor="{anchor}" font-size="9">{escape(categories[j])}</text>')
+            # Series polygons
+            for si, s in enumerate(series_list):
+                s_color = s.get("color", theme["colors"][si % len(theme["colors"])])
+                values = s.get("values", [])
+                max_val = s.get("max_val", max(values)) if values else 1
+                pts = " ".join(f"{center_x + radius * (values[j] / max_val) * math.cos(start_angle + j * angle_step):.1f},{center_y + radius * (values[j] / max_val) * math.sin(start_angle + j * angle_step):.1f}" for j in range(n))
+                parts.append(f'<polygon points="{pts}" fill="{s_color}" opacity="0.15" stroke="{s_color}" stroke-width="1.5"/>')
+
+    elif trace_type == "waterfall":
+        bars = trace.get("bars", [])
+        n_bars = len(bars)
+        if n_bars:
+            bar_w = min(60, max(8, pw / n_bars * 0.65))
+            all_vals = [b.get("start", 0) for b in bars] + [b.get("end", 0) for b in bars]
+            w_ymin = min(0, min(all_vals))
+            w_ymax = max(all_vals)
+            w_range = w_ymax - w_ymin or 1
+            w_ymin -= w_range * 0.1
+            w_ymax += w_range * 0.1
+            gap_w = pw / n_bars
+            def wsy(v):
+                return mt + ph - (v - w_ymin) / (w_ymax - w_ymin) * ph
+            for i, b in enumerate(bars):
+                bx = ml + gap_w * i + gap_w / 2 - bar_w / 2
+                start = b.get("start", 0)
+                end = b.get("end", 0)
+                is_total = b.get("is_total", False)
+                bar_top = wsy(max(start, end))
+                bar_bot = wsy(min(start, end))
+                bar_h = max(1, bar_bot - bar_top)
+                color = theme.get("accent", "#4a9f6e") if is_total else ("#4a9f6e" if end >= start else "#ef4444")
+                parts.append(f'<rect x="{bx:.1f}" y="{bar_top:.1f}" width="{bar_w:.1f}" height="{bar_h:.1f}" fill="{color}" opacity="0.8" rx="2"/>')
+                if b.get("label"):
+                    parts.append(f'<text x="{bx + bar_w / 2:.1f}" y="{mt + ph + 14}" fill="{theme["text_secondary"]}" text-anchor="middle" font-size="9">{escape(b["label"][:8])}</text>')
+
+    elif trace_type == "funnel":
+        stages = trace.get("stages", [])
+        n_stages = len(stages)
+        if n_stages:
+            stage_h = min(40, ph / n_stages * 0.8)
+            stage_gap = (ph - n_stages * stage_h) / max(1, n_stages - 1)
+            max_val = max(s.get("value", 0) for s in stages) or 1
+            for i, s in enumerate(stages):
+                val = s.get("value", 0)
+                width = (val / max_val) * pw * 0.9
+                bx = ml + (pw - width) / 2
+                by = mt + i * (stage_h + stage_gap)
+                color = s.get("color", theme["colors"][i % len(theme["colors"])])
+                parts.append(f'<rect x="{bx:.1f}" y="{by:.1f}" width="{width:.1f}" height="{stage_h:.1f}" fill="{color}" opacity="0.75" rx="3"/>')
+                parts.append(f'<text x="{ml + pw / 2:.1f}" y="{by + stage_h / 2 + 3:.1f}" fill="{theme["text"]}" text-anchor="middle" font-size="11">{escape(s.get("label", ""))} {val}</text>')
+
+    elif trace_type == "violin":
+        density = trace.get("density", [])
+        y_range = trace.get("y_range", [])
+        if density and y_range:
+            v_color = trace.get("color", theme["colors"][ti % len(theme["colors"])])
+            max_d = max(density) or 1
+            v_cx = ml + pw / 2
+            max_w = pw * 0.35
+            right_pts = []
+            left_pts = []
+            for i in range(len(density)):
+                yv = sy(y_range[i])
+                w = (density[i] / max_d) * max_w
+                right_pts.append(f"{v_cx + w:.1f},{yv:.1f}")
+                left_pts.insert(0, f"{v_cx - w:.1f},{yv:.1f}")
+            pts = " ".join(right_pts + left_pts)
+            parts.append(f'<polygon points="{pts}" fill="{v_color}" opacity="0.25" stroke="{v_color}" stroke-width="1"/>')
+
+    elif trace_type == "candlestick":
+        candles = trace.get("candles", [])
+        if candles:
+            n_c = len(candles)
+            c_gap = pw / n_c
+            c_w = min(20, max(3, c_gap * 0.65))
+            all_lows = [c.get("low", 0) for c in candles]
+            all_highs = [c.get("high", 0) for c in candles]
+            c_ymin = min(all_lows) - (max(all_highs) - min(all_lows)) * 0.05
+            c_ymax = max(all_highs) + (max(all_highs) - min(all_lows)) * 0.05
+            c_range = c_ymax - c_ymin or 1
+            def csy(v):
+                return mt + ph - (v - c_ymin) / c_range * ph
+            for i, c in enumerate(candles):
+                ccx = ml + c_gap * i + c_gap / 2
+                bullish = c.get("close", 0) >= c.get("open", 0)
+                bc = "#4a9f6e" if bullish else "#ef4444"
+                parts.append(f'<line x1="{ccx:.1f}" x2="{ccx:.1f}" y1="{csy(c["high"]):.1f}" y2="{csy(c["low"]):.1f}" stroke="{bc}" stroke-width="1"/>')
+                bt = csy(max(c["open"], c["close"]))
+                bb = csy(min(c["open"], c["close"]))
+                parts.append(f'<rect x="{ccx - c_w / 2:.1f}" y="{bt:.1f}" width="{c_w:.1f}" height="{max(1, bb - bt):.1f}" fill="{bc}" opacity="0.8"/>')
+
+    elif trace_type == "sankey":
+        nodes = trace.get("nodes", [])
+        links = trace.get("links", [])
+        node_w = 16
+        for i, node in enumerate(nodes):
+            nx = ml + node.get("x", 0) * pw
+            ny = mt + node.get("y", 0) * ph
+            nh = max(4, node.get("h", 0.05) * ph)
+            color = node.get("color", theme["colors"][i % len(theme["colors"])])
+            parts.append(f'<rect x="{nx:.1f}" y="{ny:.1f}" width="{node_w}" height="{nh:.1f}" fill="{color}" rx="2"/>')
+            lx = nx + node_w + 6 if node.get("x", 0) < 0.5 else nx - 6
+            anchor = "start" if node.get("x", 0) < 0.5 else "end"
+            parts.append(f'<text x="{lx:.1f}" y="{ny + nh / 2 + 3:.1f}" fill="{theme["text"]}" text-anchor="{anchor}" font-size="10">{escape(node.get("name", ""))}</text>')
+        max_value = trace.get("max_value", 1) or 1
+        for link in links:
+            src = nodes[link["source"]] if link["source"] < len(nodes) else {}
+            tgt = nodes[link["target"]] if link["target"] < len(nodes) else {}
+            sx_l = ml + src.get("x", 0) * pw + node_w
+            sy_l = mt + link.get("sy", src.get("y", 0)) * ph
+            tx_l = ml + tgt.get("x", 0) * pw
+            ty_l = mt + link.get("ty", tgt.get("y", 0)) * ph
+            lh = max(2, (link.get("value", 1) / max_value) * ph * 0.15)
+            mid = (sx_l + tx_l) / 2
+            d = f"M{sx_l},{sy_l} C{mid},{sy_l} {mid},{ty_l} {tx_l},{ty_l} L{tx_l},{ty_l + lh} C{mid},{ty_l + lh} {mid},{sy_l + lh} {sx_l},{sy_l + lh} Z"
+            lc = link.get("color", theme["colors"][link["source"] % len(theme["colors"])])
+            parts.append(f'<path d="{d}" fill="{lc}" opacity="0.35"/>')

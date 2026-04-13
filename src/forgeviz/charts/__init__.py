@@ -34,9 +34,25 @@ from .statistical import (
     scatter_matrix,
 )
 from .surface import contour_plot, overlay_optimal_point, response_surface_from_model
+from .advanced import candlestick, funnel, radar, sankey, treemap, violin, waterfall
 from .time_series import capacity_loading, forecast_vs_actual, inventory_position
+from .trellis import (
+    trellis,
+    trellis_control_charts,
+    trellis_from_dataframe,
+    trellis_histograms,
+    trellis_scatter,
+)
 
 __all__ = [
+    # advanced
+    "candlestick",
+    "funnel",
+    "radar",
+    "sankey",
+    "treemap",
+    "violin",
+    "waterfall",
     # bayesian
     "bayesian_acceptance",
     "bayesian_capability",
@@ -120,4 +136,10 @@ __all__ = [
     "capacity_loading",
     "forecast_vs_actual",
     "inventory_position",
+    # trellis
+    "trellis",
+    "trellis_control_charts",
+    "trellis_from_dataframe",
+    "trellis_histograms",
+    "trellis_scatter",
 ]
