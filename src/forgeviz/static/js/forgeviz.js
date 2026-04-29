@@ -1191,12 +1191,11 @@
     // ========================================================================
 
     function renderResponsive(container, spec, options) {
-        // Use FV.render (enhanced) so responsive charts get toolbar, spec storage, utilities
-        const instance = FV.render(container, spec, options);
+        const instance = render(container, spec, options);
         let resizeTimer;
         const observer = new ResizeObserver(function() {
             clearTimeout(resizeTimer);
-            resizeTimer = setTimeout(function() { FV.render(container, spec, options); }, 150);
+            resizeTimer = setTimeout(function() { render(container, spec, options); }, 150);
         });
         observer.observe(container);
         return instance;

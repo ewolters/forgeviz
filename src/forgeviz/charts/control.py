@@ -67,6 +67,17 @@ def control_chart(
         spec.add_zone(lcl, cl - 2 * one_sigma, color="rgba(245,158,11,0.03)")
         spec.add_zone(cl - 2 * one_sigma, lcl, color="rgba(239,68,68,0.05)")
 
+    # Nelson/Western Electric run rule violations — amber diamonds
+    if run_violations:
+        violation_indices = set()
+        for v in run_violations:
+            for idx in v.get("indices", []):
+                violation_indices.add(idx)
+        # Remove any that are already OOC (avoid double-marking)
+        violation_only = violation_indices - ooc
+        if violation_only:
+            spec.add_marker(sorted(violation_only), color=STATUS_AMBER, size=7, symbol="diamond", label="Run Rule")
+
     return spec
 
 
@@ -84,6 +95,7 @@ def from_spc_result(result, title: str = "") -> ChartSpec:
         chart_type_label=result.chart_type,
         usl=result.limits.usl,
         lsl=result.limits.lsl,
+        run_violations=getattr(result, "run_violations", None),
     )
 
     return spec
