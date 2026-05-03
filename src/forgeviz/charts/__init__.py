@@ -2,7 +2,7 @@
 
 from .bayesian import bayesian_acceptance, bayesian_capability, bayesian_changepoint, bayesian_control_chart
 from .capability import capability_histogram, capability_sixpack
-from .control import control_chart, from_spc_result, from_spc_result_pair
+from .control import control_chart, from_conformal_result, from_mewma_result, from_spc_result, from_spc_result_pair
 from .diagnostic import cooks_distance, four_in_one, qq_plot, residual_histogram, residual_plot, residual_vs_order
 from .distribution import box_plot, histogram
 from .effects import interaction_plot, main_effects_plot, normal_probability_plot, pareto_of_effects
@@ -63,6 +63,8 @@ __all__ = [
     "capability_sixpack",
     # control
     "control_chart",
+    "from_conformal_result",
+    "from_mewma_result",
     "from_spc_result",
     "from_spc_result_pair",
     # diagnostic

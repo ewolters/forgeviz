@@ -81,6 +81,94 @@ def control_chart(
     return spec
 
 
+def from_conformal_result(result, title: str = "Conformal Control Chart") -> list[ChartSpec]:
+    """Convert a forgespc ConformalControlResult to ChartSpec(s).
+
+    Returns a list of ChartSpecs:
+      [0] Main chart: data + prediction intervals + OOC markers + phase separator
+      [1] Nonconformity scores vs threshold
+    """
+    data = result.data_points
+    n = len(data)
+    n_cal = result.n_calibration
+    threshold = result.threshold
+    ooc_idx = set(result.ooc_indices or [])
+    pi = result.prediction_intervals
+
+    x = list(range(n))
+
+    # Chart 1: Main conformal control chart
+    main = ChartSpec(
+        title=title,
+        subtitle="Distribution-free (Burger et al. 2025)",
+        chart_type="control_chart",
+        x_axis={"label": "Observation", "grid": True},
+        y_axis={"label": "Value", "grid": True},
+    )
+
+    # Data trace — color by phase
+    main.add_trace(x[:n_cal], data[:n_cal], name="Calibration", color=get_color(0), width=1.5, marker_size=3)
+    main.add_trace(x[n_cal:], data[n_cal:], name="Monitoring", color=get_color(1), width=1.5, marker_size=3)
+
+    # Prediction interval bands
+    if pi and len(pi) == n:
+        upper = [p[1] if isinstance(p, (list, tuple)) else getattr(p, "upper", None) for p in pi]
+        lower = [p[0] if isinstance(p, (list, tuple)) else getattr(p, "lower", None) for p in pi]
+        if upper[0] is not None:
+            main.add_trace(x, upper, name="Upper PI", color=STATUS_RED, dash="dashed", width=1)
+            main.add_trace(x, lower, name="Lower PI", color=STATUS_RED, dash="dashed", width=1)
+
+    # OOC markers
+    if ooc_idx:
+        main.add_marker(sorted(ooc_idx), color=STATUS_RED, size=8, symbol="circle", label="OOC")
+
+    # Phase separator
+    main.add_reference_line(n_cal, color=STATUS_AMBER, dash="dashdot", label="Cal|Mon", axis="x")
+
+    # Chart 2: Nonconformity scores
+    scores = result.nonconformity_scores
+    if scores and len(scores) == n:
+        score_chart = ChartSpec(
+            title="Nonconformity Scores vs Threshold",
+            chart_type="bar",
+            x_axis={"label": "Observation"},
+            y_axis={"label": "|X − median|"},
+        )
+        score_chart.add_trace(x, scores, name="Score", trace_type="bar", color=get_color(0))
+        score_chart.add_reference_line(threshold, color=STATUS_RED, dash="dashed", label=f"q={threshold:.3f}")
+        return [main, score_chart]
+
+    return [main]
+
+
+def from_mewma_result(result, title: str = "MEWMA Chart") -> ChartSpec:
+    """Convert a forgespc MEWMAResult to ChartSpec.
+
+    MEWMAResult has: t2_values, ucl, in_control, out_of_control_indices,
+    lambda_param, n, n_vars.
+    """
+    t2 = result.t2_values
+    ucl = result.ucl
+    ooc_idx = set(result.out_of_control_indices or [])
+    x = list(range(1, len(t2) + 1))
+
+    spec = ChartSpec(
+        title=title,
+        subtitle=f"λ={result.lambda_param}, {result.n_vars} variables",
+        chart_type="control_chart",
+        x_axis={"label": "Sample", "grid": True},
+        y_axis={"label": "T² Statistic", "grid": True},
+    )
+
+    spec.add_trace(x, t2, name="T²", trace_type="line", color=get_color(0), width=1.5, marker_size=3)
+    spec.add_reference_line(ucl, color=STATUS_RED, dash="dashed", label=f"UCL={ucl:.2f}")
+
+    if ooc_idx:
+        spec.add_marker(sorted(ooc_idx), color=STATUS_RED, size=8, symbol="circle", label="OOC")
+
+    return spec
+
+
 def from_spc_result(result, title: str = "") -> ChartSpec:
     """Convert a forgespc ControlChartResult directly to ChartSpec."""
     ooc_indices = [p["index"] for p in result.out_of_control] if result.out_of_control else []
