@@ -15,7 +15,7 @@ def to_plotly(spec: ChartSpec) -> dict:
 
     Returns: {"data": [...traces], "layout": {...}}
     """
-    theme = get_theme(spec.theme)
+    theme = spec.theme if isinstance(spec.theme, dict) else get_theme(spec.theme)
     traces = []
     shapes = []
     annotations = []

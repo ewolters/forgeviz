@@ -48,7 +48,7 @@ forgeviz/
 ```bash
 pip install -e ".[dev]"
 pytest tests/ -v
-# 293 tests, ~0.5s
+# 314 tests, ~0.5s
 ```
 
 ## Key Design Decisions
@@ -58,7 +58,9 @@ pytest tests/ -v
 - **Dict traces for complex types** — pie, box, heatmap, treemap, radar, violin, sankey, candlestick, waterfall, funnel use dict traces; line/scatter/bar use Trace dataclass
 - **SVG renderer handles all types** — Trace objects and all dict trace types, including categorical x-axes
 - **JS renderer is shipped via static/** — Django collectstatic picks it up when forgeviz is in INSTALLED_APPS
-- **Colors are single source of truth** — core/colors.py defines every color used across the platform
+- **Per-element styling** — Trace supports `colors`, `sizes`, `labels` lists for per-point customization. Fallback chain: per-point → trace-level → theme palette. Works like Excel — color any bar, size any point, label any element.
+- **Theme as string or dict** — `ChartSpec.theme` accepts a preset name ("svend_dark") or an inline dict with custom colors/fonts. Users brand their own charts without touching ForgeViz internals.
+- **Colors are single source of truth** — core/colors.py defines every color used across the platform (presets only; users override via inline theme or per-element colors)
 - **No matplotlib, no plotly dependency** — pure Python specs, rendering is JS or SVG
 - **Analytics are pure Python** — trend detection (OLS), outlier detection (IQR/z-score/MAD), changepoint detection (CUSUM), seasonality (autocorrelation), clustering (k-means), forecasting (Holt-Winters with auto-fit, EWMA, drift) — all zero dependencies
 

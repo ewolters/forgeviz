@@ -19,7 +19,7 @@ def to_svg(spec: ChartSpec, width: int | None = None, height: int | None = None)
     """Convert ChartSpec to SVG string."""
     w = width or spec.width or 800
     h = height or spec.height or 400
-    theme = get_theme(spec.theme)
+    theme = spec.theme if isinstance(spec.theme, dict) else get_theme(spec.theme)
 
     ml, mr, mt, mb = 65, 30, 40 if spec.title else 20, 60
     pw = w - ml - mr
@@ -209,27 +209,65 @@ def to_svg(spec: ChartSpec, width: int | None = None, height: int | None = None)
         if not hasattr(trace, "x") or not hasattr(trace, "y") or not trace.x or not trace.y:
             continue
 
-        color = trace.color or theme["colors"][ti % len(theme["colors"])]
+        base_color = trace.color or theme["colors"][ti % len(theme["colors"])]
         n = min(len(trace.x), len(trace.y))
 
+        def _color_at(i):
+            if trace.colors and i < len(trace.colors) and trace.colors[i]:
+                return trace.colors[i]
+            return base_color
+
+        def _size_at(i, default):
+            if trace.sizes and i < len(trace.sizes):
+                return trace.sizes[i]
+            return default
+
+        def _xval(i):
+            v = trace.x[i]
+            if isinstance(v, (int, float)):
+                return v
+            return all_x_labels.index(str(v)) if str(v) in all_x_labels else i
+
+        def _label_at(i, px, py):
+            if trace.labels and i < len(trace.labels) and trace.labels[i]:
+                lbl = escape(str(trace.labels[i]))
+                pos = trace.label_position
+                if pos == "bottom":
+                    parts.append(f'<text x="{px:.1f}" y="{py + 14:.1f}" text-anchor="middle" fill="{theme["text"]}" font-size="10">{lbl}</text>')
+                elif pos == "left":
+                    parts.append(f'<text x="{px - 6:.1f}" y="{py + 3:.1f}" text-anchor="end" fill="{theme["text"]}" font-size="10">{lbl}</text>')
+                elif pos == "right":
+                    parts.append(f'<text x="{px + 6:.1f}" y="{py + 3:.1f}" text-anchor="start" fill="{theme["text"]}" font-size="10">{lbl}</text>')
+                elif pos == "center":
+                    parts.append(f'<text x="{px:.1f}" y="{py + 3:.1f}" text-anchor="middle" fill="{theme["text"]}" font-size="10">{lbl}</text>')
+                else:  # top (default)
+                    parts.append(f'<text x="{px:.1f}" y="{py - 6:.1f}" text-anchor="middle" fill="{theme["text"]}" font-size="10">{lbl}</text>')
+
         if trace.trace_type in ("line", "step"):
+            # Line uses base_color for the polyline; per-point colors apply to markers
             points = []
             for i in range(n):
-                xv = trace.x[i] if isinstance(trace.x[i], (int, float)) else (all_x_labels.index(str(trace.x[i])) if str(trace.x[i]) in all_x_labels else i)
-                points.append(f"{sx(xv):.1f},{sy(trace.y[i]):.1f}")
+                points.append(f"{sx(_xval(i)):.1f},{sy(trace.y[i]):.1f}")
             if points:
                 dash = "8,4" if trace.dash == "dashed" else "3,3" if trace.dash == "dotted" else ""
-                parts.append(f'<polyline points="{" ".join(points)}" fill="none" stroke="{color}" stroke-width="{trace.width}" stroke-dasharray="{dash}"/>')
-                if trace.marker_size > 0:
+                parts.append(f'<polyline points="{" ".join(points)}" fill="none" stroke="{base_color}" stroke-width="{trace.width}" stroke-dasharray="{dash}"/>')
+                has_markers = trace.marker_size > 0 or trace.sizes
+                if has_markers:
                     for i in range(n):
-                        xv = trace.x[i] if isinstance(trace.x[i], (int, float)) else (all_x_labels.index(str(trace.x[i])) if str(trace.x[i]) in all_x_labels else i)
-                        parts.append(f'<circle cx="{sx(xv):.1f}" cy="{sy(trace.y[i]):.1f}" r="{trace.marker_size / 2}" fill="{color}"/>')
+                        px, py = sx(_xval(i)), sy(trace.y[i])
+                        r = _size_at(i, trace.marker_size or 6) / 2
+                        parts.append(f'<circle cx="{px:.1f}" cy="{py:.1f}" r="{r}" fill="{_color_at(i)}"/>')
+                        _label_at(i, px, py)
+                elif trace.labels:
+                    for i in range(n):
+                        _label_at(i, sx(_xval(i)), sy(trace.y[i]))
 
         elif trace.trace_type == "scatter":
             for i in range(n):
-                xv = trace.x[i] if isinstance(trace.x[i], (int, float)) else (all_x_labels.index(str(trace.x[i])) if str(trace.x[i]) in all_x_labels else i)
-                r = (trace.marker_size or 6) / 2
-                parts.append(f'<circle cx="{sx(xv):.1f}" cy="{sy(trace.y[i]):.1f}" r="{r}" fill="{color}" opacity="{trace.opacity}"/>')
+                px, py = sx(_xval(i)), sy(trace.y[i])
+                r = _size_at(i, trace.marker_size or 6) / 2
+                parts.append(f'<circle cx="{px:.1f}" cy="{py:.1f}" r="{r}" fill="{_color_at(i)}" opacity="{trace.opacity}"/>')
+                _label_at(i, px, py)
 
         elif trace.trace_type == "bar":
             n_bars = len(trace.y)
@@ -239,24 +277,24 @@ def to_svg(spec: ChartSpec, width: int | None = None, height: int | None = None)
                 bar_w = max(3, pw / max(n_bars, 1) * 0.7)
 
             for i in range(n):
-                xv = trace.x[i] if isinstance(trace.x[i], (int, float)) else (all_x_labels.index(str(trace.x[i])) if str(trace.x[i]) in all_x_labels else i)
-                bx = sx(xv) - bar_w / 2
+                bx = sx(_xval(i)) - bar_w / 2
                 by_top = sy(trace.y[i])
                 by_bottom = sy(max(y_min, 0))
                 bh = max(0, by_bottom - by_top)
-                parts.append(f'<rect x="{bx:.1f}" y="{by_top:.1f}" width="{bar_w:.1f}" height="{bh:.1f}" fill="{color}" opacity="{trace.opacity}"/>')
+                parts.append(f'<rect x="{bx:.1f}" y="{by_top:.1f}" width="{bar_w:.1f}" height="{bh:.1f}" fill="{_color_at(i)}" opacity="{trace.opacity}"/>')
+                _label_at(i, bx + bar_w / 2, by_top)
 
         elif trace.trace_type == "area":
             points = []
             for i in range(n):
-                xv = trace.x[i] if isinstance(trace.x[i], (int, float)) else (all_x_labels.index(str(trace.x[i])) if str(trace.x[i]) in all_x_labels else i)
-                points.append(f"{sx(xv):.1f},{sy(trace.y[i]):.1f}")
+                points.append(f"{sx(_xval(i)):.1f},{sy(trace.y[i]):.1f}")
             if points:
-                last_xv = trace.x[n - 1] if isinstance(trace.x[n - 1], (int, float)) else (all_x_labels.index(str(trace.x[n - 1])) if str(trace.x[n - 1]) in all_x_labels else n - 1)
-                first_xv = trace.x[0] if isinstance(trace.x[0], (int, float)) else (all_x_labels.index(str(trace.x[0])) if str(trace.x[0]) in all_x_labels else 0)
-                points.append(f"{sx(last_xv):.1f},{sy(max(y_min, 0)):.1f}")
-                points.append(f"{sx(first_xv):.1f},{sy(max(y_min, 0)):.1f}")
-                parts.append(f'<polygon points="{" ".join(points)}" fill="{color}" opacity="{trace.opacity or 0.2}" stroke="none"/>')
+                points.append(f"{sx(_xval(n - 1)):.1f},{sy(max(y_min, 0)):.1f}")
+                points.append(f"{sx(_xval(0)):.1f},{sy(max(y_min, 0)):.1f}")
+                parts.append(f'<polygon points="{" ".join(points)}" fill="{base_color}" opacity="{trace.opacity or 0.2}" stroke="none"/>')
+                if trace.labels:
+                    for i in range(n):
+                        _label_at(i, sx(_xval(i)), sy(trace.y[i]))
 
     # Markers
     for marker in spec.markers:

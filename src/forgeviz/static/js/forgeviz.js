@@ -899,7 +899,10 @@
 
     function render(container, spec, options) {
         options = options || {};
-        var baseTheme = THEMES[spec.theme || 'svend_dark'] || THEMES.svend_dark;
+        // Theme: accept string (preset name) or dict (inline custom theme)
+        var baseTheme = (typeof spec.theme === 'object' && spec.theme !== null)
+            ? spec.theme
+            : (THEMES[spec.theme || 'svend_dark'] || THEMES.svend_dark);
         // Merge any inline style overrides (from color picker)
         const theme = spec._styleOverrides
             ? Object.assign({}, baseTheme, spec._styleOverrides)
@@ -997,8 +1000,28 @@
                 _renderDictTrace(svg, t, ti, theme, ml, mt, pw, ph, W, H, spec);
                 return;
             }
-            const color = t.color || theme.colors[ti % theme.colors.length];
+            const baseColor = t.color || theme.colors[ti % theme.colors.length];
+            const tColors = t.colors || [];
+            const tSizes = t.sizes || [];
+            const tLabels = t.labels || [];
+            const labelPos = t.label_position || 'top';
             const n = Math.min(t.x.length, t.y.length);
+
+            function colorAt(i) { return (tColors[i] && tColors[i] !== '') ? tColors[i] : baseColor; }
+            function sizeAt(i, def) { return (i < tSizes.length) ? tSizes[i] : def; }
+            function addLabel(i, px, py) {
+                if (i >= tLabels.length || !tLabels[i]) return;
+                var lx = px, ly = py, anchor = 'middle';
+                if (labelPos === 'bottom') ly = py + 14;
+                else if (labelPos === 'left') { lx = px - 6; ly = py + 3; anchor = 'end'; }
+                else if (labelPos === 'right') { lx = px + 6; ly = py + 3; anchor = 'start'; }
+                else if (labelPos === 'center') ly = py + 3;
+                else ly = py - 6; // top
+                svg.appendChild(svgEl('text', {
+                    x: lx.toFixed(1), y: ly.toFixed(1),
+                    'text-anchor': anchor, fill: theme.text, 'font-size': 10,
+                }, tLabels[i]));
+            }
 
             if (t.trace_type === 'line' || t.trace_type === 'step' || (!t.trace_type && ti === 0)) {
                 const pts = [];
@@ -1008,38 +1031,48 @@
                 }
                 svg.appendChild(svgEl('polyline', {
                     points: pts.join(' '), fill: 'none',
-                    stroke: color, 'stroke-width': t.width || 1.5,
+                    stroke: baseColor, 'stroke-width': t.width || 1.5,
                     'stroke-dasharray': dashArray(t.dash),
                 }));
 
-                // Markers
-                if (t.marker_size > 0) {
+                // Markers (render if marker_size > 0 or per-point sizes exist)
+                var hasMarkers = (t.marker_size > 0) || tSizes.length > 0;
+                if (hasMarkers) {
                     for (let i = 0; i < n; i++) {
                         const xv = typeof t.x[i] === 'number' ? t.x[i] : i;
                         const cx = sx(xv), cy = sy(t.y[i]);
+                        const r = sizeAt(i, t.marker_size || 6) / 2;
                         const circle = svgEl('circle', {
                             cx: cx.toFixed(1), cy: cy.toFixed(1),
-                            r: t.marker_size / 2, fill: color,
+                            r: r, fill: colorAt(i),
                             'data-idx': i, 'data-trace': ti,
                             'data-x': xv, 'data-y': t.y[i],
                             style: 'cursor:pointer',
                         });
                         svg.appendChild(circle);
                         dataPoints.push({ el: circle, x: t.x[i], y: t.y[i], name: t.name, idx: i });
+                        addLabel(i, cx, cy);
+                    }
+                } else if (tLabels.length > 0) {
+                    for (let i = 0; i < n; i++) {
+                        const xv = typeof t.x[i] === 'number' ? t.x[i] : i;
+                        addLabel(i, sx(xv), sy(t.y[i]));
                     }
                 }
             } else if (t.trace_type === 'scatter') {
                 for (let i = 0; i < n; i++) {
                     const xv = typeof t.x[i] === 'number' ? t.x[i] : i;
                     const cx = sx(xv), cy = sy(t.y[i]);
+                    const r = sizeAt(i, t.marker_size || 6) / 2;
                     const circle = svgEl('circle', {
                         cx: cx.toFixed(1), cy: cy.toFixed(1),
-                        r: (t.marker_size || 6) / 2, fill: color,
+                        r: r, fill: colorAt(i),
                         opacity: t.opacity || 1, style: 'cursor:pointer',
                         'data-idx': i, 'data-x': xv, 'data-y': t.y[i],
                     });
                     svg.appendChild(circle);
                     dataPoints.push({ el: circle, x: t.x[i], y: t.y[i], name: t.name, idx: i });
+                    addLabel(i, cx, cy);
                 }
             } else if (t.trace_type === 'bar') {
                 const barW = Math.max(3, pw / n * 0.7);
@@ -1050,11 +1083,12 @@
                     const rect = svgEl('rect', {
                         x: bx.toFixed(1), y: byTop.toFixed(1),
                         width: barW.toFixed(1), height: (byBottom - byTop).toFixed(1),
-                        fill: color, opacity: t.opacity || 0.8,
+                        fill: colorAt(i), opacity: t.opacity || 0.8,
                         style: 'cursor:pointer',
                     });
                     svg.appendChild(rect);
                     dataPoints.push({ el: rect, x: t.x[i], y: t.y[i], name: t.name, idx: i });
+                    addLabel(i, bx + barW / 2, byTop);
                 }
             } else if (t.trace_type === 'area') {
                 const pts = [];
@@ -1068,8 +1102,14 @@
                 pts.push(`${sx(lastX).toFixed(1)},${sy(yNice.min).toFixed(1)}`);
                 pts.push(`${sx(firstX).toFixed(1)},${sy(yNice.min).toFixed(1)}`);
                 svg.appendChild(svgEl('polygon', {
-                    points: pts.join(' '), fill: color, opacity: t.opacity || 0.2, stroke: 'none',
+                    points: pts.join(' '), fill: baseColor, opacity: t.opacity || 0.2, stroke: 'none',
                 }));
+                if (tLabels.length > 0) {
+                    for (let i = 0; i < n; i++) {
+                        const xv = typeof t.x[i] === 'number' ? t.x[i] : i;
+                        addLabel(i, sx(xv), sy(t.y[i]));
+                    }
+                }
             }
         });
 
@@ -1801,7 +1841,7 @@
         }
 
         // Current background
-        var theme = FV.themes[spec.theme] || FV.themes.svend_dark;
+        var theme = (typeof spec.theme === 'object' && spec.theme !== null) ? spec.theme : (FV.themes[spec.theme] || FV.themes.svend_dark);
         var bgColor = theme.bg || '#0d120d';
 
         // Current grid color
@@ -2129,7 +2169,7 @@
         var highlightOnHover = options.highlightOnHover !== false;
         var columns = dashSpec.columns || 3;
         var panels = dashSpec.panels || [];
-        var theme = FV.themes[dashSpec.theme] || FV.themes.svend_dark;
+        var theme = (typeof dashSpec.theme === 'object' && dashSpec.theme !== null) ? dashSpec.theme : (FV.themes[dashSpec.theme] || FV.themes.svend_dark);
 
         // Clear container
         container.innerHTML = '';

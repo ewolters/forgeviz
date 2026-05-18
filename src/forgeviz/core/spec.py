@@ -21,12 +21,16 @@ class Trace:
     name: str = ""
     trace_type: str = "line"  # line, scatter, bar, area, step
     color: str = ""
+    colors: list[str] = field(default_factory=list)  # per-point colors (overrides color)
     dash: str = ""  # solid, dashed, dotted
     width: float = 1.5
     marker_size: float = 0
+    sizes: list[float] = field(default_factory=list)  # per-point marker sizes (overrides marker_size)
     marker_symbol: str = "circle"
     fill: str = ""  # "tozeroy", "tonexty", ""
     opacity: float = 1.0
+    labels: list[str] = field(default_factory=list)  # per-point text labels
+    label_position: str = "top"  # top, bottom, left, right, center
     metadata: dict[str, Any] = field(default_factory=dict)  # per-point data for tooltips
 
 
@@ -99,7 +103,7 @@ class ChartSpec:
 
     width: int = 800
     height: int = 400
-    theme: str = "svend_dark"
+    theme: str | dict = "svend_dark"  # name for preset, or inline dict
 
     # Annotations
     annotations: list[dict] = field(default_factory=list)
