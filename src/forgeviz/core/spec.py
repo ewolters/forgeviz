@@ -74,6 +74,10 @@ class Axis:
     """Axis configuration."""
 
     label: str = ""
+    label_color: str = ""
+    label_font_size: int = 0  # 0 = use default (11)
+    tick_color: str = ""
+    tick_font_size: int = 0  # 0 = use default (10)
     min_val: float | None = None
     max_val: float | None = None
     tick_format: str = ""  # ".2f", ".0%", etc.
@@ -90,7 +94,11 @@ class ChartSpec:
     """
 
     title: str = ""
+    title_color: str = ""
+    title_font_size: int = 0  # 0 = use default (14)
     subtitle: str = ""
+    subtitle_color: str = ""
+    subtitle_font_size: int = 0  # 0 = use default (11)
     chart_type: str = ""  # informational — "control_chart", "histogram", etc.
 
     traces: list[Trace] = field(default_factory=list)

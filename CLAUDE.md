@@ -48,7 +48,7 @@ forgeviz/
 ```bash
 pip install -e ".[dev]"
 pytest tests/ -v
-# 314 tests, ~0.5s
+# 327 tests, ~0.5s
 ```
 
 ## Key Design Decisions

@@ -146,12 +146,35 @@ def to_svg(spec: ChartSpec, width: int | None = None, height: int | None = None)
     def sy(val):
         return mt + ph - (val - y_min) / (y_max - y_min) * ph if (y_max - y_min) else mt + ph / 2
 
+    # Axis property helper (works for Axis objects and dicts)
+    def _ax(axis, key, default=""):
+        if isinstance(axis, dict):
+            return axis.get(key, default)
+        return getattr(axis, key, default)
+
+    # Resolve label styling
+    title_color = spec.title_color or theme["text"]
+    title_fs = spec.title_font_size or 14
+    subtitle_color = spec.subtitle_color or theme["text_secondary"]
+    subtitle_fs = spec.subtitle_font_size or 11
+    x_tick_color = _ax(spec.x_axis, "tick_color", "") or theme["text_secondary"]
+    x_tick_fs = _ax(spec.x_axis, "tick_font_size", 0) or 10
+    y_tick_color = _ax(spec.y_axis, "tick_color", "") or theme["text_secondary"]
+    y_tick_fs = _ax(spec.y_axis, "tick_font_size", 0) or 10
+    x_label_color = _ax(spec.x_axis, "label_color", "") or theme["text_secondary"]
+    x_label_fs = _ax(spec.x_axis, "label_font_size", 0) or 11
+    y_label_color = _ax(spec.y_axis, "label_color", "") or theme["text_secondary"]
+    y_label_fs = _ax(spec.y_axis, "label_font_size", 0) or 11
+
     # Build SVG
     parts = [f'<svg xmlns="http://www.w3.org/2000/svg" width="{w}" height="{h}" style="background:{theme["bg"]};font-family:{theme["font"]}">']
 
     # Title
     if spec.title:
-        parts.append(f'<text x="{w // 2}" y="20" text-anchor="middle" fill="{theme["text"]}" font-size="14" font-weight="500">{escape(spec.title)}</text>')
+        parts.append(f'<text x="{w // 2}" y="20" text-anchor="middle" fill="{title_color}" font-size="{title_fs}" font-weight="500">{escape(spec.title)}</text>')
+    if spec.subtitle:
+        sub_y = 20 + title_fs + 2 if spec.title else 20
+        parts.append(f'<text x="{w // 2}" y="{sub_y}" text-anchor="middle" fill="{subtitle_color}" font-size="{subtitle_fs}">{escape(spec.subtitle)}</text>')
 
     # Y-axis grid and labels
     n_yticks = 5
@@ -161,14 +184,14 @@ def to_svg(spec: ChartSpec, width: int | None = None, height: int | None = None)
         yy = sy(val)
         parts.append(f'<line x1="{ml}" y1="{yy:.1f}" x2="{ml + pw}" y2="{yy:.1f}" stroke="{theme["grid"]}" stroke-width="1"/>')
         label = f"{val:.2f}" if abs(val) < 100 else f"{val:.0f}"
-        parts.append(f'<text x="{ml - 5}" y="{yy + 4:.1f}" text-anchor="end" fill="{theme["text_secondary"]}" font-size="10">{label}</text>')
+        parts.append(f'<text x="{ml - 5}" y="{yy + 4:.1f}" text-anchor="end" fill="{y_tick_color}" font-size="{y_tick_fs}">{label}</text>')
 
     # X-axis labels
     if is_categorical_x and all_x_labels:
         for i, label in enumerate(all_x_labels):
             xx = ml + i * cat_width + cat_width / 2
             display = escape(label[:12])
-            parts.append(f'<text x="{xx:.1f}" y="{mt + ph + 18}" text-anchor="middle" fill="{theme["text_secondary"]}" font-size="10">{display}</text>')
+            parts.append(f'<text x="{xx:.1f}" y="{mt + ph + 18}" text-anchor="middle" fill="{x_tick_color}" font-size="{x_tick_fs}">{display}</text>')
     else:
         n_xticks = min(8, len(all_x_numeric))
         if n_xticks > 1 and all_x_numeric:
@@ -177,7 +200,7 @@ def to_svg(spec: ChartSpec, width: int | None = None, height: int | None = None)
                 val = x_min + i * x_step
                 xx = sx(val)
                 label = f"{val:.1f}" if abs(val) < 100 else f"{val:.0f}"
-                parts.append(f'<text x="{xx:.1f}" y="{mt + ph + 18}" text-anchor="middle" fill="{theme["text_secondary"]}" font-size="10">{label}</text>')
+                parts.append(f'<text x="{xx:.1f}" y="{mt + ph + 18}" text-anchor="middle" fill="{x_tick_color}" font-size="{x_tick_fs}">{label}</text>')
 
     # Zones
     for zone in spec.zones:
@@ -311,12 +334,12 @@ def to_svg(spec: ChartSpec, width: int | None = None, height: int | None = None)
     parts.append(f'<line x1="{ml}" y1="{mt + ph}" x2="{ml + pw}" y2="{mt + ph}" stroke="{theme["axis"]}" stroke-width="1"/>')
 
     # Axis labels
-    x_label = spec.x_axis.get("label", "") if isinstance(spec.x_axis, dict) else getattr(spec.x_axis, "label", "")
-    y_label = spec.y_axis.get("label", "") if isinstance(spec.y_axis, dict) else getattr(spec.y_axis, "label", "")
+    x_label = _ax(spec.x_axis, "label", "")
+    y_label = _ax(spec.y_axis, "label", "")
     if x_label:
-        parts.append(f'<text x="{ml + pw // 2}" y="{h - 8}" text-anchor="middle" fill="{theme["text_secondary"]}" font-size="11">{escape(x_label)}</text>')
+        parts.append(f'<text x="{ml + pw // 2}" y="{h - 8}" text-anchor="middle" fill="{x_label_color}" font-size="{x_label_fs}">{escape(x_label)}</text>')
     if y_label:
-        parts.append(f'<text x="14" y="{mt + ph // 2}" text-anchor="middle" fill="{theme["text_secondary"]}" font-size="11" transform="rotate(-90,14,{mt + ph // 2})">{escape(y_label)}</text>')
+        parts.append(f'<text x="14" y="{mt + ph // 2}" text-anchor="middle" fill="{y_label_color}" font-size="{y_label_fs}" transform="rotate(-90,14,{mt + ph // 2})">{escape(y_label)}</text>')
 
     # Annotations
     for ann in spec.annotations:

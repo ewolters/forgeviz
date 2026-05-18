@@ -1,8 +1,8 @@
-"""Tests for per-element styling: colors, sizes, labels on Trace."""
+"""Tests for per-element styling: colors, sizes, labels on Trace and ChartSpec."""
 
 import unittest
 
-from forgeviz.core.spec import ChartSpec, Trace, render
+from forgeviz.core.spec import Axis, ChartSpec, Trace, render
 
 
 class TestPerPointColors(unittest.TestCase):
@@ -299,6 +299,142 @@ class TestCombined(unittest.TestCase):
         assert trace_d["sizes"] == [4, 8]
         assert trace_d["labels"] == ["a", "b"]
         assert trace_d["label_position"] == "bottom"
+
+
+class TestCustomTitle(unittest.TestCase):
+    """Custom title color, size, and subtitle rendering."""
+
+    def test_title_custom_color(self):
+        spec = ChartSpec(title="My Title", title_color="#ff0000")
+        spec.add_trace([1, 2], [10, 20], trace_type="bar")
+        svg = render(spec, "svg")
+        assert "#ff0000" in svg
+        assert "My Title" in svg
+
+    def test_title_custom_font_size(self):
+        spec = ChartSpec(title="Big Title", title_font_size=24)
+        spec.add_trace([1, 2], [10, 20], trace_type="bar")
+        svg = render(spec, "svg")
+        assert 'font-size="24"' in svg
+
+    def test_subtitle_rendered(self):
+        spec = ChartSpec(title="Title", subtitle="Subtitle here")
+        spec.add_trace([1, 2], [10, 20], trace_type="bar")
+        svg = render(spec, "svg")
+        assert "Title" in svg
+        assert "Subtitle here" in svg
+
+    def test_subtitle_custom_color(self):
+        spec = ChartSpec(subtitle="Sub", subtitle_color="#00ff00")
+        spec.add_trace([1, 2], [10, 20], trace_type="bar")
+        svg = render(spec, "svg")
+        assert "#00ff00" in svg
+
+    def test_subtitle_custom_font_size(self):
+        spec = ChartSpec(subtitle="Small Sub", subtitle_font_size=9)
+        spec.add_trace([1, 2], [10, 20], trace_type="bar")
+        svg = render(spec, "svg")
+        assert 'font-size="9"' in svg
+
+    def test_title_defaults_to_theme(self):
+        """No custom color → theme text color."""
+        spec = ChartSpec(title="Default", theme="light")
+        spec.add_trace([1, 2], [10, 20], trace_type="bar")
+        svg = render(spec, "svg")
+        assert "#1a1a2e" in svg  # light theme text color
+
+
+class TestCustomAxisLabels(unittest.TestCase):
+    """Custom axis label colors and sizes."""
+
+    def test_x_axis_label_color(self):
+        spec = ChartSpec(
+            x_axis=Axis(label="X Label", label_color="#ff0000"),
+        )
+        spec.add_trace([1, 2], [10, 20], trace_type="bar")
+        svg = render(spec, "svg")
+        assert "X Label" in svg
+        assert "#ff0000" in svg
+
+    def test_y_axis_label_font_size(self):
+        spec = ChartSpec(
+            y_axis=Axis(label="Y Label", label_font_size=16),
+        )
+        spec.add_trace([1, 2], [10, 20], trace_type="bar")
+        svg = render(spec, "svg")
+        assert "Y Label" in svg
+        assert 'font-size="16"' in svg
+
+    def test_tick_color(self):
+        spec = ChartSpec(
+            y_axis=Axis(tick_color="#abcdef"),
+        )
+        spec.add_trace([1, 2], [10, 20], trace_type="bar")
+        svg = render(spec, "svg")
+        assert "#abcdef" in svg
+
+    def test_tick_font_size(self):
+        spec = ChartSpec(
+            x_axis=Axis(tick_font_size=14),
+        )
+        spec.add_trace(["A", "B"], [10, 20], trace_type="bar")
+        svg = render(spec, "svg")
+        assert 'font-size="14"' in svg
+
+    def test_dict_axis_still_works(self):
+        """Axis as dict (backward compat) should not crash."""
+        spec = ChartSpec()
+        spec.x_axis = {"label": "From Dict"}
+        spec.add_trace([1, 2], [10, 20], trace_type="bar")
+        svg = render(spec, "svg")
+        assert "From Dict" in svg
+
+    def test_all_labels_customized(self):
+        """Full customization: title, subtitle, both axes."""
+        spec = ChartSpec(
+            title="Plant Utilization",
+            title_color="#2a5f8f",
+            title_font_size=18,
+            subtitle="Q1 2026 — Imperial 26100",
+            subtitle_color="#8a8880",
+            x_axis=Axis(label="Plant", label_color="#333", tick_color="#666"),
+            y_axis=Axis(label="Utilization %", label_color="#333", label_font_size=13),
+        )
+        spec.add_trace(
+            ["WIN", "ELL", "BTR", "BOU"],
+            [95, 78, 65, 42],
+            trace_type="bar",
+            colors=["#d06060", "#e89547", "#4a9f6e", "#4a9f6e"],
+            labels=["95%", "78%", "65%", "42%"],
+        )
+        svg = render(spec, "svg")
+        assert "Plant Utilization" in svg
+        assert "Q1 2026" in svg
+        assert "#2a5f8f" in svg  # title color
+        assert "#8a8880" in svg  # subtitle color
+        assert 'font-size="18"' in svg  # title size
+        assert "Plant" in svg  # x label
+        assert "Utilization %" in svg  # y label
+        assert "95%" in svg  # data label
+
+    def test_serialization_includes_new_fields(self):
+        spec = ChartSpec(
+            title="T",
+            title_color="#aaa",
+            title_font_size=20,
+            subtitle="S",
+            subtitle_color="#bbb",
+            subtitle_font_size=9,
+            x_axis=Axis(label="X", label_color="#ccc", tick_color="#ddd", tick_font_size=8),
+        )
+        d = spec.to_dict()
+        assert d["title_color"] == "#aaa"
+        assert d["title_font_size"] == 20
+        assert d["subtitle_color"] == "#bbb"
+        assert d["subtitle_font_size"] == 9
+        assert d["x_axis"]["label_color"] == "#ccc"
+        assert d["x_axis"]["tick_color"] == "#ddd"
+        assert d["x_axis"]["tick_font_size"] == 8
 
 
 if __name__ == "__main__":

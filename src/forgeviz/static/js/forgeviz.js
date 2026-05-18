@@ -935,13 +935,37 @@
         // Build SVG
         const svg = svgEl('svg', { width: W, height: H, style: `background:${theme.bg}` });
 
+        // Resolve label styling from spec (0 = use default)
+        var titleColor = spec.title_color || theme.text;
+        var titleFs = spec.title_font_size || 14;
+        var subtitleColor = spec.subtitle_color || (theme.textSecondary || theme.text_secondary);
+        var subtitleFs = spec.subtitle_font_size || 11;
+        var xAxis = spec.x_axis || {};
+        var yAxis = spec.y_axis || {};
+        var xTickColor = xAxis.tick_color || (theme.textSecondary || theme.text_secondary);
+        var xTickFs = xAxis.tick_font_size || 10;
+        var yTickColor = yAxis.tick_color || (theme.textSecondary || theme.text_secondary);
+        var yTickFs = yAxis.tick_font_size || 10;
+        var xLabelColor = xAxis.label_color || (theme.textSecondary || theme.text_secondary);
+        var xLabelFs = xAxis.label_font_size || 11;
+        var yLabelColor = yAxis.label_color || (theme.textSecondary || theme.text_secondary);
+        var yLabelFs = yAxis.label_font_size || 11;
+
         // Title
         if (spec.title) {
             svg.appendChild(svgEl('text', {
                 x: W / 2, y: 18, 'text-anchor': 'middle',
-                fill: theme.text, 'font-size': 14, 'font-weight': 500,
+                fill: titleColor, 'font-size': titleFs, 'font-weight': 500,
                 'font-family': theme.font,
             }, spec.title));
+        }
+        if (spec.subtitle) {
+            var subY = spec.title ? (18 + titleFs + 2) : 18;
+            svg.appendChild(svgEl('text', {
+                x: W / 2, y: subY, 'text-anchor': 'middle',
+                fill: subtitleColor, 'font-size': subtitleFs,
+                'font-family': theme.font,
+            }, spec.subtitle));
         }
 
         // Grid
@@ -951,7 +975,7 @@
             svg.appendChild(svgEl('line', { x1: ml, y1: yy, x2: ml + pw, y2: yy, stroke: theme.grid, 'stroke-width': 1 }));
             svg.appendChild(svgEl('text', {
                 x: ml - 6, y: yy + 4, 'text-anchor': 'end',
-                fill: theme.textSecondary, 'font-size': 10, 'font-family': theme.font,
+                fill: yTickColor, 'font-size': yTickFs, 'font-family': theme.font,
             }, v.toFixed(v % 1 ? 2 : 0)));
         });
 
@@ -960,7 +984,7 @@
             const xx = sx(v);
             svg.appendChild(svgEl('text', {
                 x: xx, y: mt + ph + 18, 'text-anchor': 'middle',
-                fill: theme.textSecondary, 'font-size': 10, 'font-family': theme.font,
+                fill: xTickColor, 'font-size': xTickFs, 'font-family': theme.font,
             }, typeof (spec.traces[0] || {}).x?.[v] === 'string' ? spec.traces[0].x[v] : v.toFixed(v % 1 ? 1 : 0)));
         });
 
@@ -1138,13 +1162,13 @@
         if (xLabel) {
             svg.appendChild(svgEl('text', {
                 x: ml + pw / 2, y: H - 8, 'text-anchor': 'middle',
-                fill: theme.textSecondary, 'font-size': 11, 'font-family': theme.font,
+                fill: xLabelColor, 'font-size': xLabelFs, 'font-family': theme.font,
             }, xLabel));
         }
         if (yLabel) {
             const yt = svgEl('text', {
                 x: 14, y: mt + ph / 2, 'text-anchor': 'middle',
-                fill: theme.textSecondary, 'font-size': 11, 'font-family': theme.font,
+                fill: yLabelColor, 'font-size': yLabelFs, 'font-family': theme.font,
                 transform: `rotate(-90,14,${mt + ph / 2})`,
             }, yLabel);
             svg.appendChild(yt);
