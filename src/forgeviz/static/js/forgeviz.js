@@ -933,7 +933,8 @@
         const sy = linearScale([yNice.min, yNice.max], [mt + ph, mt]);
 
         // Build SVG
-        const svg = svgEl('svg', { width: W, height: H, style: `background:${theme.bg}` });
+        var chartBg = spec.background_color || theme.bg;
+        const svg = svgEl('svg', { width: W, height: H, style: `background:${chartBg}` });
 
         // Resolve label styling from spec (0 = use default)
         var titleColor = spec.title_color || theme.text;
@@ -1028,11 +1029,20 @@
             const tColors = t.colors || [];
             const tSizes = t.sizes || [];
             const tLabels = t.labels || [];
+            const tBorderColors = t.border_colors || [];
+            const baseBorder = t.border_color || '';
+            const borderW = t.border_width || 0;
             const labelPos = t.label_position || 'top';
             const n = Math.min(t.x.length, t.y.length);
 
             function colorAt(i) { return (tColors[i] && tColors[i] !== '') ? tColors[i] : baseColor; }
             function sizeAt(i, def) { return (i < tSizes.length) ? tSizes[i] : def; }
+            function borderAt(i) { return (tBorderColors[i] && tBorderColors[i] !== '') ? tBorderColors[i] : baseBorder; }
+            function strokeAttrs(i) {
+                var bc = borderAt(i);
+                if (bc && borderW > 0) return { stroke: bc, 'stroke-width': borderW };
+                return {};
+            }
             function addLabel(i, px, py) {
                 if (i >= tLabels.length || !tLabels[i]) return;
                 var lx = px, ly = py, anchor = 'middle';
@@ -1066,13 +1076,13 @@
                         const xv = typeof t.x[i] === 'number' ? t.x[i] : i;
                         const cx = sx(xv), cy = sy(t.y[i]);
                         const r = sizeAt(i, t.marker_size || 6) / 2;
-                        const circle = svgEl('circle', {
+                        const circle = svgEl('circle', Object.assign({
                             cx: cx.toFixed(1), cy: cy.toFixed(1),
                             r: r, fill: colorAt(i),
                             'data-idx': i, 'data-trace': ti,
                             'data-x': xv, 'data-y': t.y[i],
                             style: 'cursor:pointer',
-                        });
+                        }, strokeAttrs(i)));
                         svg.appendChild(circle);
                         dataPoints.push({ el: circle, x: t.x[i], y: t.y[i], name: t.name, idx: i });
                         addLabel(i, cx, cy);
@@ -1088,12 +1098,12 @@
                     const xv = typeof t.x[i] === 'number' ? t.x[i] : i;
                     const cx = sx(xv), cy = sy(t.y[i]);
                     const r = sizeAt(i, t.marker_size || 6) / 2;
-                    const circle = svgEl('circle', {
+                    const circle = svgEl('circle', Object.assign({
                         cx: cx.toFixed(1), cy: cy.toFixed(1),
                         r: r, fill: colorAt(i),
                         opacity: t.opacity || 1, style: 'cursor:pointer',
                         'data-idx': i, 'data-x': xv, 'data-y': t.y[i],
-                    });
+                    }, strokeAttrs(i)));
                     svg.appendChild(circle);
                     dataPoints.push({ el: circle, x: t.x[i], y: t.y[i], name: t.name, idx: i });
                     addLabel(i, cx, cy);
@@ -1104,12 +1114,12 @@
                     const xv = typeof t.x[i] === 'number' ? t.x[i] : i;
                     const bx = sx(xv) - barW / 2;
                     const byTop = sy(t.y[i]), byBottom = sy(yNice.min);
-                    const rect = svgEl('rect', {
+                    const rect = svgEl('rect', Object.assign({
                         x: bx.toFixed(1), y: byTop.toFixed(1),
                         width: barW.toFixed(1), height: (byBottom - byTop).toFixed(1),
                         fill: colorAt(i), opacity: t.opacity || 0.8,
                         style: 'cursor:pointer',
-                    });
+                    }, strokeAttrs(i)));
                     svg.appendChild(rect);
                     dataPoints.push({ el: rect, x: t.x[i], y: t.y[i], name: t.name, idx: i });
                     addLabel(i, bx + barW / 2, byTop);

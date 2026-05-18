@@ -167,7 +167,8 @@ def to_svg(spec: ChartSpec, width: int | None = None, height: int | None = None)
     y_label_fs = _ax(spec.y_axis, "label_font_size", 0) or 11
 
     # Build SVG
-    parts = [f'<svg xmlns="http://www.w3.org/2000/svg" width="{w}" height="{h}" style="background:{theme["bg"]};font-family:{theme["font"]}">']
+    bg = spec.background_color or theme["bg"]
+    parts = [f'<svg xmlns="http://www.w3.org/2000/svg" width="{w}" height="{h}" style="background:{bg};font-family:{theme["font"]}">']
 
     # Title
     if spec.title:
@@ -245,6 +246,20 @@ def to_svg(spec: ChartSpec, width: int | None = None, height: int | None = None)
                 return trace.sizes[i]
             return default
 
+        base_border = trace.border_color
+        border_w = trace.border_width
+
+        def _border_at(i):
+            if trace.border_colors and i < len(trace.border_colors) and trace.border_colors[i]:
+                return trace.border_colors[i]
+            return base_border
+
+        def _stroke_attrs(i):
+            bc = _border_at(i)
+            if bc and border_w > 0:
+                return f' stroke="{bc}" stroke-width="{border_w}"'
+            return ""
+
         def _xval(i):
             v = trace.x[i]
             if isinstance(v, (int, float)):
@@ -279,7 +294,7 @@ def to_svg(spec: ChartSpec, width: int | None = None, height: int | None = None)
                     for i in range(n):
                         px, py = sx(_xval(i)), sy(trace.y[i])
                         r = _size_at(i, trace.marker_size or 6) / 2
-                        parts.append(f'<circle cx="{px:.1f}" cy="{py:.1f}" r="{r}" fill="{_color_at(i)}"/>')
+                        parts.append(f'<circle cx="{px:.1f}" cy="{py:.1f}" r="{r}" fill="{_color_at(i)}"{_stroke_attrs(i)}/>')
                         _label_at(i, px, py)
                 elif trace.labels:
                     for i in range(n):
@@ -289,7 +304,7 @@ def to_svg(spec: ChartSpec, width: int | None = None, height: int | None = None)
             for i in range(n):
                 px, py = sx(_xval(i)), sy(trace.y[i])
                 r = _size_at(i, trace.marker_size or 6) / 2
-                parts.append(f'<circle cx="{px:.1f}" cy="{py:.1f}" r="{r}" fill="{_color_at(i)}" opacity="{trace.opacity}"/>')
+                parts.append(f'<circle cx="{px:.1f}" cy="{py:.1f}" r="{r}" fill="{_color_at(i)}" opacity="{trace.opacity}"{_stroke_attrs(i)}/>')
                 _label_at(i, px, py)
 
         elif trace.trace_type == "bar":
@@ -304,7 +319,7 @@ def to_svg(spec: ChartSpec, width: int | None = None, height: int | None = None)
                 by_top = sy(trace.y[i])
                 by_bottom = sy(max(y_min, 0))
                 bh = max(0, by_bottom - by_top)
-                parts.append(f'<rect x="{bx:.1f}" y="{by_top:.1f}" width="{bar_w:.1f}" height="{bh:.1f}" fill="{_color_at(i)}" opacity="{trace.opacity}"/>')
+                parts.append(f'<rect x="{bx:.1f}" y="{by_top:.1f}" width="{bar_w:.1f}" height="{bh:.1f}" fill="{_color_at(i)}" opacity="{trace.opacity}"{_stroke_attrs(i)}/>')
                 _label_at(i, bx + bar_w / 2, by_top)
 
         elif trace.trace_type == "area":

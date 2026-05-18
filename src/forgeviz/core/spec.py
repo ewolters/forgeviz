@@ -29,6 +29,9 @@ class Trace:
     marker_symbol: str = "circle"
     fill: str = ""  # "tozeroy", "tonexty", ""
     opacity: float = 1.0
+    border_color: str = ""  # stroke color for bars/points
+    border_colors: list[str] = field(default_factory=list)  # per-point border colors
+    border_width: float = 0  # stroke width (0 = no border)
     labels: list[str] = field(default_factory=list)  # per-point text labels
     label_position: str = "top"  # top, bottom, left, right, center
     metadata: dict[str, Any] = field(default_factory=dict)  # per-point data for tooltips
@@ -111,6 +114,7 @@ class ChartSpec:
 
     width: int = 800
     height: int = 400
+    background_color: str = ""  # plot area fill (overrides theme bg)
     theme: str | dict = "svend_dark"  # name for preset, or inline dict
 
     # Annotations

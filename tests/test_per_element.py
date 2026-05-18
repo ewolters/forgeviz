@@ -301,6 +301,96 @@ class TestCombined(unittest.TestCase):
         assert trace_d["label_position"] == "bottom"
 
 
+class TestBorderAndFill(unittest.TestCase):
+    """Border (stroke) on bars/points and background fill on chart."""
+
+    def test_bar_border(self):
+        spec = ChartSpec()
+        spec.add_trace(
+            ["A", "B"], [10, 20],
+            trace_type="bar",
+            border_color="#000000",
+            border_width=2,
+        )
+        svg = render(spec, "svg")
+        assert 'stroke="#000000"' in svg
+        assert 'stroke-width="2"' in svg
+
+    def test_bar_per_point_borders(self):
+        spec = ChartSpec()
+        spec.add_trace(
+            ["A", "B", "C"], [10, 20, 30],
+            trace_type="bar",
+            border_colors=["red", "", "blue"],
+            border_width=1.5,
+        )
+        svg = render(spec, "svg")
+        assert 'stroke="red"' in svg
+        assert 'stroke="blue"' in svg
+
+    def test_scatter_border(self):
+        spec = ChartSpec()
+        spec.add_trace(
+            [1, 2, 3], [10, 20, 30],
+            trace_type="scatter",
+            border_color="#333",
+            border_width=1,
+        )
+        svg = render(spec, "svg")
+        assert 'stroke="#333"' in svg
+
+    def test_line_marker_border(self):
+        spec = ChartSpec()
+        spec.add_trace(
+            [1, 2], [10, 20],
+            trace_type="line",
+            marker_size=8,
+            border_color="white",
+            border_width=2,
+        )
+        svg = render(spec, "svg")
+        assert 'stroke="white"' in svg
+
+    def test_no_border_when_width_zero(self):
+        spec = ChartSpec()
+        spec.add_trace(
+            [1, 2], [10, 20],
+            trace_type="bar",
+            border_color="#000",
+            border_width=0,
+        )
+        svg = render(spec, "svg")
+        assert 'stroke="#000"' not in svg
+
+    def test_background_color(self):
+        spec = ChartSpec(background_color="#f5f0e8")
+        spec.add_trace([1, 2], [10, 20], trace_type="bar")
+        svg = render(spec, "svg")
+        assert "#f5f0e8" in svg
+
+    def test_background_defaults_to_theme(self):
+        spec = ChartSpec(theme="light")
+        spec.add_trace([1, 2], [10, 20], trace_type="bar")
+        svg = render(spec, "svg")
+        assert "#ffffff" in svg  # light theme bg
+
+    def test_border_serialization(self):
+        spec = ChartSpec()
+        spec.add_trace(
+            [1], [10],
+            trace_type="bar",
+            border_color="#aaa",
+            border_colors=["#bbb"],
+            border_width=1.5,
+        )
+        d = spec.to_dict()
+        t = d["traces"][0]
+        assert t["border_color"] == "#aaa"
+        assert t["border_colors"] == ["#bbb"]
+        assert t["border_width"] == 1.5
+        assert d["background_color"] == ""
+
+
 class TestCustomTitle(unittest.TestCase):
     """Custom title color, size, and subtitle rendering."""
 
