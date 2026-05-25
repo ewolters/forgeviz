@@ -13,6 +13,10 @@ from .generic import (
 )
 from .interactive import counterfactual_comparison, sensitivity_tornado, slider_chart
 from .socratic import capability_gap, gap_chart, oee_gap
+from .tufte import (
+    dot_dash, quartile_plot, range_frame, rug,
+    slope_chart, tufte_bar, tufte_line, tufte_mode,
+)
 from .knowledge import (
     ddmrp_buffer_status,
     detection_ladder,
@@ -143,6 +147,15 @@ __all__ = [
     "multi_vari_chart",
     "parallel_coordinates",
     "scatter_matrix",
+    # tufte
+    "dot_dash",
+    "quartile_plot",
+    "range_frame",
+    "rug",
+    "slope_chart",
+    "tufte_bar",
+    "tufte_line",
+    "tufte_mode",
     # surface
     "contour_plot",
     "overlay_optimal_point",

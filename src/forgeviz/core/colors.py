@@ -204,6 +204,21 @@ THEMES = {
         "colors": ["#8b7355", "#c4956a", "#6b8f71", "#9b7f9b", "#c47d5e",
                    "#5e8b8b", "#b89a5e", "#7a8b6b", "#8b6b6b", "#6b7a8b"],
     },
+    "tufte": {
+        "bg": "#fffff8",
+        "plot_bg": "#fffff8",
+        "text": "#111111",
+        "text_secondary": "#555555",
+        "grid": "rgba(0,0,0,0)",
+        "axis": "#333333",
+        "accent": "#333333",
+        "font": "Georgia, 'Times New Roman', serif",
+        "font_mono": "Courier, monospace",
+        "colors": ["#333333", "#888888", "#c0392b", "#2980b9", "#27ae60",
+                   "#8e44ad", "#d35400", "#16a085", "#555555", "#aaaaaa"],
+        "range_frame": True,
+        "bar_width_ratio": 0.4,
+    },
 }
 
 

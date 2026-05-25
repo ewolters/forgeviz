@@ -71,6 +71,27 @@ def to_svg(spec: ChartSpec, width: int | None = None, height: int | None = None)
                 # Ensure we have y range even if labels are strings
                 if not all_y and tz:
                     all_y = [0, len(ty)]
+            # Quartile plot — extract Q1/median/Q3
+            elif trace_type == "quartile_plot":
+                for key in ("q1", "median", "q3"):
+                    v = trace.get(key)
+                    if isinstance(v, (int, float)):
+                        all_y.append(v)
+                all_x_numeric.append(trace.get("x_position", 0))
+            # Rug — extract values for axis range
+            elif trace_type in ("rug_x", "rug_y"):
+                for v in trace.get("values", []):
+                    if isinstance(v, (int, float)):
+                        if trace_type == "rug_x":
+                            all_x_numeric.append(v)
+                        else:
+                            all_y.append(v)
+            # Slope chart — extract before/after values
+            elif trace_type == "slope_chart":
+                for v in trace.get("before", []) + trace.get("after", []):
+                    if isinstance(v, (int, float)):
+                        all_y.append(v)
+                all_x_numeric.extend([0, 1])
             # Generic dict with y list
             elif "y" in trace and isinstance(trace["y"], list):
                 for v in trace["y"]:
@@ -230,12 +251,14 @@ def to_svg(spec: ChartSpec, width: int | None = None, height: int | None = None)
         return f"{val:.2f}" if abs(val) < 100 else f"{val:.0f}"
 
     # Y-axis grid and labels
+    show_y_grid = _ax(spec.y_axis, "grid", True)
     n_yticks = 5
     y_step = (y_max - y_min) / n_yticks if n_yticks > 0 else 1
     for i in range(n_yticks + 1):
         val = y_min + i * y_step
         yy = sy(val)
-        parts.append(f'<line x1="{ml}" y1="{yy:.1f}" x2="{ml + pw}" y2="{yy:.1f}" stroke="{theme["grid"]}" stroke-width="1"/>')
+        if show_y_grid:
+            parts.append(f'<line x1="{ml}" y1="{yy:.1f}" x2="{ml + pw}" y2="{yy:.1f}" stroke="{theme["grid"]}" stroke-width="1"/>')
         label = _fmt_tick(val, y_tick_fmt)
         parts.append(f'<text x="{ml - 5}" y="{yy + 4:.1f}" text-anchor="end" fill="{y_tick_color}" font-size="{y_tick_fs}">{label}</text>')
 
@@ -363,10 +386,11 @@ def to_svg(spec: ChartSpec, width: int | None = None, height: int | None = None)
 
         elif trace.trace_type == "bar":
             n_bars = len(trace.y)
+            bar_ratio = theme.get("bar_width_ratio", 0.7) if isinstance(theme, dict) else 0.7
             if is_categorical_x and all_x_labels:
-                bar_w = max(3, cat_width * 0.6)
+                bar_w = max(3, cat_width * bar_ratio)
             else:
-                bar_w = max(3, pw / max(n_bars, 1) * 0.7)
+                bar_w = max(3, pw / max(n_bars, 1) * bar_ratio)
 
             for i in range(n):
                 bx = sx(_xval(i)) - bar_w / 2
@@ -653,3 +677,75 @@ def _render_dict_trace(parts, trace, ti, sx, sy, ml, mt, pw, ph, theme, is_cat, 
             d = f"M{sx_l},{sy_l} C{mid},{sy_l} {mid},{ty_l} {tx_l},{ty_l} L{tx_l},{ty_l + lh} C{mid},{ty_l + lh} {mid},{sy_l + lh} {sx_l},{sy_l + lh} Z"
             lc = link.get("color", theme["colors"][link["source"] % len(theme["colors"])])
             parts.append(f'<path d="{d}" fill="{lc}" opacity="0.35"/>')
+
+    elif trace_type == "quartile_plot":
+        x_pos = trace.get("x_position", ti)
+        color = trace.get("color", theme["colors"][ti % len(theme["colors"])])
+        q1 = trace.get("q1", 0)
+        median = trace.get("median", 0)
+        q3 = trace.get("q3", 0)
+        dot_size = trace.get("dot_size", 5)
+        n_groups = max(1, ti + 2)
+        cx = ml + (x_pos + 0.5) * (pw / n_groups)
+        # Thin line Q1 to Q3
+        parts.append(f'<line x1="{cx:.1f}" y1="{sy(q1):.1f}" x2="{cx:.1f}" y2="{sy(q3):.1f}" stroke="{color}" stroke-width="0.75"/>')
+        # Filled median dot
+        parts.append(f'<circle cx="{cx:.1f}" cy="{sy(median):.1f}" r="{dot_size / 2}" fill="{color}"/>')
+        # Open quartile dots
+        qr = dot_size * 0.35
+        parts.append(f'<circle cx="{cx:.1f}" cy="{sy(q1):.1f}" r="{qr}" fill="none" stroke="{color}" stroke-width="1"/>')
+        parts.append(f'<circle cx="{cx:.1f}" cy="{sy(q3):.1f}" r="{qr}" fill="none" stroke="{color}" stroke-width="1"/>')
+        # Label
+        name = trace.get("name", "")
+        if name:
+            parts.append(f'<text x="{cx:.1f}" y="{mt + ph + 16}" text-anchor="middle" fill="{theme["text_secondary"]}" font-size="10">{escape(name)}</text>')
+
+    elif trace_type in ("rug_x", "rug_y"):
+        values = trace.get("values", [])
+        color = trace.get("color", theme["axis"])
+        length = trace.get("length", 6)
+        for v in values:
+            if not isinstance(v, (int, float)):
+                continue
+            if trace_type == "rug_x":
+                rx = sx(v)
+                parts.append(f'<line x1="{rx:.1f}" y1="{mt + ph}" x2="{rx:.1f}" y2="{mt + ph + length}" stroke="{color}" stroke-width="0.5"/>')
+            else:
+                ry = sy(v)
+                parts.append(f'<line x1="{ml - length}" y1="{ry:.1f}" x2="{ml}" y2="{ry:.1f}" stroke="{color}" stroke-width="0.5"/>')
+
+    elif trace_type == "slope_chart":
+        labels = trace.get("labels", [])
+        before = trace.get("before", [])
+        after = trace.get("after", [])
+        n_items = min(len(labels), len(before), len(after))
+        if n_items == 0:
+            return
+        before_label = trace.get("before_label", "Before")
+        after_label = trace.get("after_label", "After")
+        base_color = trace.get("base_color", theme["text"])
+        highlight = trace.get("highlight_changes", True)
+        inc_color = trace.get("increase_color", "#2980b9")
+        dec_color = trace.get("decrease_color", "#c0392b")
+        lx = ml + pw * 0.15
+        rx = ml + pw * 0.85
+        all_vals = before[:n_items] + after[:n_items]
+        v_min = min(all_vals)
+        v_max = max(all_vals)
+        v_range = v_max - v_min or 1
+        def slope_y(v):
+            return mt + 30 + (1 - (v - v_min) / v_range) * (ph - 40)
+        # Column headers
+        parts.append(f'<text x="{lx:.1f}" y="{mt + 16}" text-anchor="middle" fill="{theme["text_secondary"]}" font-size="11" font-weight="500">{escape(before_label)}</text>')
+        parts.append(f'<text x="{rx:.1f}" y="{mt + 16}" text-anchor="middle" fill="{theme["text_secondary"]}" font-size="11" font-weight="500">{escape(after_label)}</text>')
+        for i in range(n_items):
+            ly = slope_y(before[i])
+            ry_val = slope_y(after[i])
+            line_color = base_color
+            if highlight:
+                line_color = inc_color if after[i] > before[i] else dec_color if after[i] < before[i] else base_color
+            parts.append(f'<line x1="{lx:.1f}" y1="{ly:.1f}" x2="{rx:.1f}" y2="{ry_val:.1f}" stroke="{line_color}" stroke-width="1.5"/>')
+            parts.append(f'<circle cx="{lx:.1f}" cy="{ly:.1f}" r="3" fill="{line_color}"/>')
+            parts.append(f'<circle cx="{rx:.1f}" cy="{ry_val:.1f}" r="3" fill="{line_color}"/>')
+            parts.append(f'<text x="{lx - 8:.1f}" y="{ly + 4:.1f}" text-anchor="end" fill="{theme["text"]}" font-size="10">{escape(labels[i])} {before[i]:.1f}</text>')
+            parts.append(f'<text x="{rx + 8:.1f}" y="{ry_val + 4:.1f}" text-anchor="start" fill="{theme["text"]}" font-size="10">{after[i]:.1f} {escape(labels[i])}</text>')
