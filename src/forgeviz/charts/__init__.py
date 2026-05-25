@@ -12,6 +12,7 @@ from .generic import (
     risk_heatmap, sparkline, stacked_area, stacked_bar,
 )
 from .interactive import counterfactual_comparison, sensitivity_tornado, slider_chart
+from .socratic import capability_gap, gap_chart, oee_gap
 from .knowledge import (
     ddmrp_buffer_status,
     detection_ladder,
@@ -111,6 +112,10 @@ __all__ = [
     "counterfactual_comparison",
     "sensitivity_tornado",
     "slider_chart",
+    # socratic
+    "capability_gap",
+    "gap_chart",
+    "oee_gap",
     # knowledge
     "ddmrp_buffer_status",
     "detection_ladder",

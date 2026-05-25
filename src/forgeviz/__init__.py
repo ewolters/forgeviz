@@ -19,9 +19,12 @@ __version__ = "0.1.0"
 from .core.dashboard import DashboardBuilder, DashboardSpec
 from .core.export import to_csv, to_data_json, to_table
 from .core.spec import ChartSpec, render
+from .core.streaming import StreamingSpec
+from .renderers.html import content_hash, diff_specs, to_html
 
 __all__ = [
-    "ChartSpec", "DashboardBuilder", "DashboardSpec",
-    "render", "to_csv", "to_data_json", "to_table",
+    "ChartSpec", "DashboardBuilder", "DashboardSpec", "StreamingSpec",
+    "content_hash", "diff_specs",
+    "render", "to_csv", "to_data_json", "to_html", "to_table",
     "__version__",
 ]
