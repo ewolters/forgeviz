@@ -17,6 +17,11 @@ Usage:
 __version__ = "0.1.0"
 
 from .core.dashboard import DashboardBuilder, DashboardSpec
+from .core.export import to_csv, to_data_json, to_table
 from .core.spec import ChartSpec, render
 
-__all__ = ["ChartSpec", "DashboardBuilder", "DashboardSpec", "render", "__version__"]
+__all__ = [
+    "ChartSpec", "DashboardBuilder", "DashboardSpec",
+    "render", "to_csv", "to_data_json", "to_table",
+    "__version__",
+]

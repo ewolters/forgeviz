@@ -70,6 +70,43 @@ def gage_rr_by_operator(
     return spec
 
 
+def bland_altman(
+    method_a: list[float],
+    method_b: list[float],
+    title: str = "Bland-Altman Plot",
+) -> ChartSpec:
+    """Bland-Altman agreement plot — mean vs difference of two methods.
+
+    Shows bias (mean difference), limits of agreement (±1.96 SD),
+    and individual measurement pairs.
+    """
+    n = min(len(method_a), len(method_b))
+    means = [(method_a[i] + method_b[i]) / 2 for i in range(n)]
+    diffs = [method_a[i] - method_b[i] for i in range(n)]
+
+    mean_diff = sum(diffs) / n if n > 0 else 0
+    import math
+    sd_diff = math.sqrt(sum((d - mean_diff) ** 2 for d in diffs) / max(n - 1, 1)) if n > 1 else 0
+
+    upper_loa = mean_diff + 1.96 * sd_diff
+    lower_loa = mean_diff - 1.96 * sd_diff
+
+    spec = ChartSpec(
+        title=title,
+        chart_type="bland_altman",
+        x_axis={"label": "Mean of Methods"},
+        y_axis={"label": "Difference (A − B)"},
+    )
+
+    spec.add_trace(means, diffs, name="Observations", trace_type="scatter", color=get_color(0), marker_size=6)
+    spec.add_reference_line(mean_diff, color=STATUS_GREEN, dash="solid", label=f"Bias: {mean_diff:.3f}")
+    spec.add_reference_line(upper_loa, color=STATUS_RED, dash="dashed", label=f"+1.96 SD: {upper_loa:.3f}")
+    spec.add_reference_line(lower_loa, color=STATUS_RED, dash="dashed", label=f"−1.96 SD: {lower_loa:.3f}")
+    spec.add_zone(lower_loa, upper_loa, color="rgba(74,159,110,0.05)", label="Limits of Agreement")
+
+    return spec
+
+
 def gage_xbar_r(
     part_means: list[float],
     part_ranges: list[float],

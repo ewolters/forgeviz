@@ -149,6 +149,25 @@ def to_svg(spec: ChartSpec, width: int | None = None, height: int | None = None)
             return axis.get(key, default)
         return getattr(axis, key, default)
 
+    # Log scale support
+    y_scale = _ax(spec.y_axis, "scale", "linear")
+    x_scale = _ax(spec.x_axis, "scale", "linear")
+
+    if y_scale == "log" and y_min > 0:
+        import math
+        y_min_log = math.log10(y_min)
+        y_max_log = math.log10(y_max)
+    else:
+        y_scale = "linear"  # force linear if data includes zero/negative
+
+    if x_scale == "log" and not is_categorical_x:
+        import math as _math
+        if x_min > 0:
+            x_min_log = _math.log10(x_min)
+            x_max_log = _math.log10(x_max)
+        else:
+            x_scale = "linear"
+
     # Apply explicit axis ranges if set
     y_min_override = _ax(spec.y_axis, "min_val", None)
     y_max_override = _ax(spec.y_axis, "max_val", None)
@@ -167,6 +186,10 @@ def to_svg(spec: ChartSpec, width: int | None = None, height: int | None = None)
         x_range = x_max - x_min or 1
 
     def sy(val):
+        if y_scale == "log" and isinstance(val, (int, float)) and val > 0:
+            import math
+            lv = math.log10(val)
+            return mt + ph - (lv - y_min_log) / (y_max_log - y_min_log) * ph if (y_max_log - y_min_log) else mt + ph / 2
         return mt + ph - (val - y_min) / (y_max - y_min) * ph if (y_max - y_min) else mt + ph / 2
 
     # Resolve label styling

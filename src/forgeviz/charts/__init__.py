@@ -6,7 +6,7 @@ from .control import control_chart, from_conformal_result, from_mewma_result, fr
 from .diagnostic import cooks_distance, four_in_one, qq_plot, residual_histogram, residual_plot, residual_vs_order
 from .distribution import box_plot, ecdf, histogram, probability_plot
 from .effects import interaction_plot, main_effects_plot, normal_probability_plot, pareto_of_effects
-from .gage import gage_rr_by_operator, gage_rr_by_part, gage_rr_components, gage_xbar_r
+from .gage import bland_altman, gage_rr_by_operator, gage_rr_by_part, gage_rr_components, gage_xbar_r
 from .generic import (
     area, bar, bullet, donut, gauge, grouped_bar, line, multi_line, pie,
     risk_heatmap, sparkline, stacked_area, stacked_bar,
@@ -88,6 +88,7 @@ __all__ = [
     "normal_probability_plot",
     "pareto_of_effects",
     # gage
+    "bland_altman",
     "gage_rr_by_operator",
     "gage_rr_by_part",
     "gage_rr_components",

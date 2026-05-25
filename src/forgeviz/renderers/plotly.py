@@ -126,7 +126,7 @@ def to_plotly(spec: ChartSpec) -> dict:
     y_axis_spec = spec.y_axis if isinstance(spec.y_axis, dict) else spec.y_axis.__dict__
 
     layout = {
-        "title": {"text": spec.title, "font": {"size": 14, "color": theme["text"]}},
+        "title": {"text": spec.title, "font": {"size": spec.title_font_size or 14, "color": spec.title_color or theme["text"]}},
         "paper_bgcolor": theme["bg"],
         "plot_bgcolor": theme["plot_bg"],
         "font": {"family": theme["font"], "size": 12, "color": theme["text"]},
