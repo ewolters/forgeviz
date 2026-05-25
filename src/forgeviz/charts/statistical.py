@@ -142,6 +142,76 @@ def parallel_coordinates(
     return spec
 
 
+def multi_vari_chart(
+    data: dict[str, dict[str, list[float]]],
+    title: str = "Multi-Vari Chart",
+) -> ChartSpec:
+    """Multi-vari chart — variation within and between groups.
+
+    data: {factor_level: {sub_group: [values]}}
+    Shows individual values connected within subgroups, across factor levels.
+    """
+    spec = ChartSpec(title=title, chart_type="multi_vari", x_axis={"label": "Factor Level"}, y_axis={"label": "Value"})
+
+    x_pos = 0
+    x_labels = []
+    for level_name, subgroups in data.items():
+        for sub_name, values in subgroups.items():
+            x_vals = [x_pos] * len(values)
+            spec.add_trace(x_vals, values, name=sub_name, trace_type="scatter", color=get_color(hash(sub_name) % 10), marker_size=6)
+            # Connect within subgroup
+            if len(values) > 1:
+                spec.add_trace(x_vals, values, name="", trace_type="line", color=get_color(hash(sub_name) % 10), width=0.5)
+            x_labels.append(f"{level_name}/{sub_name}")
+            x_pos += 1
+        # Mean line across subgroups for this level
+        all_vals = [v for sg in subgroups.values() for v in sg]
+        if all_vals:
+            mean = sum(all_vals) / len(all_vals)
+            spec.add_reference_line(mean, color=get_color(0), dash="dotted", width=0.5)
+
+    return spec
+
+
+def correlation_heatmap(
+    data: dict[str, list[float]],
+    title: str = "Correlation Matrix",
+    method: str = "pearson",
+) -> ChartSpec:
+    """Correlation heatmap — auto-compute correlation matrix from column data."""
+    names = list(data.keys())
+    n = len(names)
+    matrix = []
+
+    for i in range(n):
+        row = []
+        for j in range(n):
+            xi = data[names[i]]
+            xj = data[names[j]]
+            length = min(len(xi), len(xj))
+            if length < 2:
+                row.append(0.0)
+                continue
+            x1, x2 = xi[:length], xj[:length]
+            mean1 = sum(x1) / length
+            mean2 = sum(x2) / length
+            if method == "spearman":
+                # Rank-based
+                r1 = [sorted(x1).index(v) for v in x1]
+                r2 = [sorted(x2).index(v) for v in x2]
+                x1, x2 = [float(v) for v in r1], [float(v) for v in r2]
+                mean1 = sum(x1) / length
+                mean2 = sum(x2) / length
+            cov = sum((x1[k] - mean1) * (x2[k] - mean2) for k in range(length)) / (length - 1)
+            std1 = math.sqrt(sum((v - mean1) ** 2 for v in x1) / (length - 1))
+            std2 = math.sqrt(sum((v - mean2) ** 2 for v in x2) / (length - 1))
+            r = cov / (std1 * std2) if std1 > 0 and std2 > 0 else 0
+            row.append(round(r, 3))
+        matrix.append(row)
+
+    return heatmap(names, names, matrix, title=title)
+
+
 def mosaic(
     contingency: dict[str, dict[str, int]],
     title: str = "Mosaic Plot",

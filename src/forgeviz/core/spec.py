@@ -89,6 +89,19 @@ class Axis:
 
 
 @dataclass
+class Annotation:
+    """A text annotation on the chart."""
+
+    x: float | int | str = 0
+    y: float | int | str = 0
+    text: str = ""
+    color: str = ""
+    font_size: int = 10
+    anchor: str = "start"  # start, middle, end
+    font_family: str = ""
+
+
+@dataclass
 class ChartSpec:
     """Universal chart specification.
 
@@ -117,18 +130,25 @@ class ChartSpec:
     background_color: str = ""  # plot area fill (overrides theme bg)
     theme: str | dict = "svend_dark"  # name for preset, or inline dict
 
-    # Annotations
-    annotations: list[dict] = field(default_factory=list)
-    # [{x, y, text, color, font_size}]
+    # Annotations — accepts Annotation objects or dicts for backward compat
+    annotations: list[dict | Annotation] = field(default_factory=list)
 
     # Legend
     show_legend: bool = True
     legend_position: str = "bottom"  # top, bottom, right, none
 
+    # Interactive config — slider factors, model coefficients, etc.
+    interactive: dict[str, Any] | None = None
+
     def to_dict(self) -> dict:
         """Convert to JSON-serializable dict."""
         from dataclasses import asdict
-        return asdict(self)
+        d = asdict(self)
+        # Normalize annotations — Annotation dataclasses become dicts via asdict,
+        # plain dicts pass through. Filter None interactive.
+        if d.get("interactive") is None:
+            del d["interactive"]
+        return d
 
     def to_json(self, **kwargs) -> str:
         """Convert to JSON string."""

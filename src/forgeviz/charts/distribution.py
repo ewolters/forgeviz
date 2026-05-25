@@ -77,6 +77,105 @@ def histogram(
     return spec
 
 
+def probability_plot(
+    data: list[float],
+    distribution: str = "normal",
+    title: str = "",
+) -> ChartSpec:
+    """Probability plot — data quantiles vs theoretical quantiles.
+
+    Supports: normal, lognormal, exponential, weibull.
+    """
+    import math
+
+    if not data or len(data) < 3:
+        return ChartSpec(title=title or f"Probability Plot ({distribution})", chart_type="probability_plot")
+
+    sorted_d = sorted(data)
+    n = len(sorted_d)
+    # Plotting positions (Blom's formula)
+    pp = [(i - 0.375) / (n + 0.25) for i in range(1, n + 1)]
+
+    if distribution == "lognormal":
+        sorted_d = [math.log(max(v, 1e-10)) for v in sorted_d]
+        dist_label = "Lognormal"
+    elif distribution == "exponential":
+        # Exponential quantiles: -ln(1-p)
+        theoretical = [-math.log(1 - p) for p in pp]
+        spec = ChartSpec(
+            title=title or "Probability Plot (Exponential)",
+            chart_type="probability_plot",
+            x_axis={"label": "Theoretical Quantiles (Exponential)"},
+            y_axis={"label": "Ordered Data"},
+        )
+        spec.add_trace(theoretical, sorted_d, name="Data", trace_type="scatter", color=get_color(0), marker_size=5)
+        # Fit line
+        mean = sum(sorted_d) / n
+        fit_x = [theoretical[0], theoretical[-1]]
+        fit_y = [mean * theoretical[0], mean * theoretical[-1]]
+        spec.add_trace(fit_x, fit_y, name="Fit", trace_type="line", color=STATUS_RED, dash="dashed", width=1.5)
+        return spec
+    else:
+        dist_label = "Normal"
+
+    # Normal/Lognormal: use inverse normal CDF approximation
+    def _inv_norm(p):
+        # Rational approximation (Abramowitz & Stegun 26.2.23)
+        if p <= 0:
+            return -4.0
+        if p >= 1:
+            return 4.0
+        if p == 0.5:
+            return 0.0
+        if p > 0.5:
+            return -_inv_norm(1 - p)
+        t = math.sqrt(-2 * math.log(p))
+        c0, c1, c2 = 2.515517, 0.802853, 0.010328
+        d1, d2, d3 = 1.432788, 0.189269, 0.001308
+        return -(t - (c0 + c1 * t + c2 * t * t) / (1 + d1 * t + d2 * t * t + d3 * t * t * t))
+
+    theoretical = [_inv_norm(p) for p in pp]
+
+    spec = ChartSpec(
+        title=title or f"Probability Plot ({dist_label})",
+        chart_type="probability_plot",
+        x_axis={"label": f"Theoretical Quantiles ({dist_label})"},
+        y_axis={"label": "Ordered Data"},
+    )
+    spec.add_trace(theoretical, sorted_d, name="Data", trace_type="scatter", color=get_color(0), marker_size=5)
+
+    # Reference line (mean + std * theoretical)
+    mean = sum(sorted_d) / n
+    std = math.sqrt(sum((x - mean) ** 2 for x in sorted_d) / max(n - 1, 1))
+    fit_x = [theoretical[0], theoretical[-1]]
+    fit_y = [mean + std * theoretical[0], mean + std * theoretical[-1]]
+    spec.add_trace(fit_x, fit_y, name="Reference", trace_type="line", color=STATUS_RED, dash="dashed", width=1.5)
+
+    return spec
+
+
+def ecdf(
+    data: list[float],
+    title: str = "ECDF",
+) -> ChartSpec:
+    """Empirical Cumulative Distribution Function."""
+    if not data:
+        return ChartSpec(title=title, chart_type="ecdf")
+
+    sorted_d = sorted(data)
+    n = len(sorted_d)
+    y = [(i + 1) / n for i in range(n)]
+
+    spec = ChartSpec(
+        title=title,
+        chart_type="ecdf",
+        x_axis={"label": "Value"},
+        y_axis={"label": "Cumulative Probability"},
+    )
+    spec.add_trace(sorted_d, y, name="ECDF", trace_type="step", color=get_color(0), width=2)
+    return spec
+
+
 def box_plot(
     datasets: dict[str, list[float]],
     title: str = "Box Plot",

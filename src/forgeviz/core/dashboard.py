@@ -179,10 +179,22 @@ class DashboardSpec:
 
     @classmethod
     def from_dict(cls, d: dict[str, Any]) -> DashboardSpec:
-        """Reconstruct from a serialized dict."""
+        """Reconstruct from a serialized dict, including full trace data."""
+        from .spec import Axis, Marker, ReferenceLine, Trace, Zone
+
         panels = []
-        for pd in d.get("panels", []):
-            spec_data = pd.pop("spec", {})
+        for pd_raw in d.get("panels", []):
+            pd_copy = dict(pd_raw)
+            spec_data = pd_copy.pop("spec", {})
+
+            # Reconstruct traces
+            traces = []
+            for td in spec_data.get("traces", []):
+                if isinstance(td, dict) and "x" in td and "y" in td and "trace_type" in td:
+                    traces.append(Trace(**{k: v for k, v in td.items() if k in Trace.__dataclass_fields__}))
+                elif isinstance(td, dict):
+                    traces.append(td)  # dict-based trace (box, heatmap, etc.)
+
             chart_spec = ChartSpec(
                 title=spec_data.get("title", ""),
                 subtitle=spec_data.get("subtitle", ""),
@@ -190,8 +202,24 @@ class DashboardSpec:
                 theme=spec_data.get("theme", "svend_dark"),
                 width=spec_data.get("width", 800),
                 height=spec_data.get("height", 400),
+                title_color=spec_data.get("title_color", ""),
+                subtitle_color=spec_data.get("subtitle_color", ""),
+                background_color=spec_data.get("background_color", ""),
+                show_legend=spec_data.get("show_legend", True),
+                legend_position=spec_data.get("legend_position", "bottom"),
+                annotations=spec_data.get("annotations", []),
+                traces=traces,
+                reference_lines=[ReferenceLine(**r) for r in spec_data.get("reference_lines", [])],
+                zones=[Zone(**z) for z in spec_data.get("zones", [])],
+                markers=[Marker(**m) for m in spec_data.get("markers", [])],
             )
-            panels.append(DashboardPanel(spec=chart_spec, **pd))
+            # Reconstruct axes
+            for axis_key in ("x_axis", "y_axis"):
+                ax_data = spec_data.get(axis_key)
+                if isinstance(ax_data, dict):
+                    setattr(chart_spec, axis_key, Axis(**{k: v for k, v in ax_data.items() if k in Axis.__dataclass_fields__}))
+
+            panels.append(DashboardPanel(spec=chart_spec, **pd_copy))
 
         return cls(
             title=d.get("title", ""),

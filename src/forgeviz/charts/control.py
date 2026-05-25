@@ -189,6 +189,29 @@ def from_spc_result(result, title: str = "") -> ChartSpec:
     return spec
 
 
+def run_chart(
+    data_points: list[float],
+    title: str = "Run Chart",
+    center: float | None = None,
+) -> ChartSpec:
+    """Run chart — data plotted in time order with median line.
+
+    Simpler than a control chart: no control limits, just sequence and center.
+    """
+    x = list(range(1, len(data_points) + 1))
+    median = center if center is not None else sorted(data_points)[len(data_points) // 2] if data_points else 0
+
+    spec = ChartSpec(
+        title=title,
+        chart_type="run_chart",
+        x_axis={"label": "Observation"},
+        y_axis={"label": "Value"},
+    )
+    spec.add_trace(x, data_points, name="Data", trace_type="line", color=get_color(0), width=1.5, marker_size=4)
+    spec.add_reference_line(median, color=STATUS_GREEN, dash="solid", label=f"Median: {median:.3f}")
+    return spec
+
+
 def from_spc_result_pair(result, title: str = "") -> list[ChartSpec]:
     """Convert a forgespc ControlChartResult with secondary chart to a pair of ChartSpecs.
 

@@ -2,9 +2,9 @@
 
 from .bayesian import bayesian_acceptance, bayesian_capability, bayesian_changepoint, bayesian_control_chart
 from .capability import capability_histogram, capability_sixpack
-from .control import control_chart, from_conformal_result, from_mewma_result, from_spc_result, from_spc_result_pair
+from .control import control_chart, from_conformal_result, from_mewma_result, from_spc_result, from_spc_result_pair, run_chart
 from .diagnostic import cooks_distance, four_in_one, qq_plot, residual_histogram, residual_plot, residual_vs_order
-from .distribution import box_plot, histogram
+from .distribution import box_plot, ecdf, histogram, probability_plot
 from .effects import interaction_plot, main_effects_plot, normal_probability_plot, pareto_of_effects
 from .gage import gage_rr_by_operator, gage_rr_by_part, gage_rr_components, gage_xbar_r
 from .generic import (
@@ -25,11 +25,13 @@ from .reliability import hazard_function, reliability_block_diagram, survival_cu
 from .scatter import pareto, scatter
 from .statistical import (
     bubble,
+    correlation_heatmap,
     dotplot,
     heatmap,
     individual_value_plot,
     interval_plot,
     mosaic,
+    multi_vari_chart,
     parallel_coordinates,
     scatter_matrix,
 )
@@ -67,6 +69,7 @@ __all__ = [
     "from_mewma_result",
     "from_spc_result",
     "from_spc_result_pair",
+    "run_chart",
     # diagnostic
     "cooks_distance",
     "four_in_one",
@@ -76,7 +79,9 @@ __all__ = [
     "residual_vs_order",
     # distribution
     "box_plot",
+    "ecdf",
     "histogram",
+    "probability_plot",
     # effects
     "interaction_plot",
     "main_effects_plot",
@@ -123,11 +128,13 @@ __all__ = [
     "scatter",
     # statistical
     "bubble",
+    "correlation_heatmap",
     "dotplot",
     "heatmap",
     "individual_value_plot",
     "interval_plot",
     "mosaic",
+    "multi_vari_chart",
     "parallel_coordinates",
     "scatter_matrix",
     # surface

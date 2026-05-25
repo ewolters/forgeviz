@@ -143,14 +143,31 @@ def to_svg(spec: ChartSpec, width: int | None = None, height: int | None = None)
     y_min -= y_range * 0.05
     y_max += y_range * 0.05
 
-    def sy(val):
-        return mt + ph - (val - y_min) / (y_max - y_min) * ph if (y_max - y_min) else mt + ph / 2
-
     # Axis property helper (works for Axis objects and dicts)
     def _ax(axis, key, default=""):
         if isinstance(axis, dict):
             return axis.get(key, default)
         return getattr(axis, key, default)
+
+    # Apply explicit axis ranges if set
+    y_min_override = _ax(spec.y_axis, "min_val", None)
+    y_max_override = _ax(spec.y_axis, "max_val", None)
+    if y_min_override is not None:
+        y_min = y_min_override
+    if y_max_override is not None:
+        y_max = y_max_override
+
+    x_min_override = _ax(spec.x_axis, "min_val", None)
+    x_max_override = _ax(spec.x_axis, "max_val", None)
+    if not is_categorical_x:
+        if x_min_override is not None:
+            x_min = x_min_override
+        if x_max_override is not None:
+            x_max = x_max_override
+        x_range = x_max - x_min or 1
+
+    def sy(val):
+        return mt + ph - (val - y_min) / (y_max - y_min) * ph if (y_max - y_min) else mt + ph / 2
 
     # Resolve label styling
     title_color = spec.title_color or theme["text"]
@@ -177,6 +194,18 @@ def to_svg(spec: ChartSpec, width: int | None = None, height: int | None = None)
         sub_y = 20 + title_fs + 2 if spec.title else 20
         parts.append(f'<text x="{w // 2}" y="{sub_y}" text-anchor="middle" fill="{subtitle_color}" font-size="{subtitle_fs}">{escape(spec.subtitle)}</text>')
 
+    # Tick format helpers
+    y_tick_fmt = _ax(spec.y_axis, "tick_format", "")
+    x_tick_fmt = _ax(spec.x_axis, "tick_format", "")
+
+    def _fmt_tick(val, fmt):
+        if fmt:
+            try:
+                return format(val, fmt)
+            except (ValueError, TypeError):
+                pass
+        return f"{val:.2f}" if abs(val) < 100 else f"{val:.0f}"
+
     # Y-axis grid and labels
     n_yticks = 5
     y_step = (y_max - y_min) / n_yticks if n_yticks > 0 else 1
@@ -184,7 +213,7 @@ def to_svg(spec: ChartSpec, width: int | None = None, height: int | None = None)
         val = y_min + i * y_step
         yy = sy(val)
         parts.append(f'<line x1="{ml}" y1="{yy:.1f}" x2="{ml + pw}" y2="{yy:.1f}" stroke="{theme["grid"]}" stroke-width="1"/>')
-        label = f"{val:.2f}" if abs(val) < 100 else f"{val:.0f}"
+        label = _fmt_tick(val, y_tick_fmt)
         parts.append(f'<text x="{ml - 5}" y="{yy + 4:.1f}" text-anchor="end" fill="{y_tick_color}" font-size="{y_tick_fs}">{label}</text>')
 
     # X-axis labels
@@ -200,7 +229,7 @@ def to_svg(spec: ChartSpec, width: int | None = None, height: int | None = None)
             for i in range(n_xticks + 1):
                 val = x_min + i * x_step
                 xx = sx(val)
-                label = f"{val:.1f}" if abs(val) < 100 else f"{val:.0f}"
+                label = _fmt_tick(val, x_tick_fmt)
                 parts.append(f'<text x="{xx:.1f}" y="{mt + ph + 18}" text-anchor="middle" fill="{x_tick_color}" font-size="{x_tick_fs}">{label}</text>')
 
     # Zones
@@ -209,6 +238,8 @@ def to_svg(spec: ChartSpec, width: int | None = None, height: int | None = None)
             zy1 = sy(zone.high)
             zy2 = sy(zone.low)
             parts.append(f'<rect x="{ml}" y="{zy1:.1f}" width="{pw}" height="{max(0, zy2 - zy1):.1f}" fill="{zone.color}"/>')
+            if zone.label:
+                parts.append(f'<text x="{ml + pw - 3}" y="{zy1 + 12:.1f}" text-anchor="end" fill="{theme["text_secondary"]}" font-size="9" opacity="0.7">{escape(zone.label)}</text>')
 
     # Reference lines
     for ref in spec.reference_lines:
@@ -342,7 +373,10 @@ def to_svg(spec: ChartSpec, width: int | None = None, height: int | None = None)
                 for idx in marker.indices:
                     if idx < len(first.x) and idx < len(first.y):
                         xv = first.x[idx] if isinstance(first.x[idx], (int, float)) else (all_x_labels.index(str(first.x[idx])) if is_categorical_x and str(first.x[idx]) in all_x_labels else idx)
-                        parts.append(f'<circle cx="{sx(xv):.1f}" cy="{sy(first.y[idx]):.1f}" r="{marker.size / 2}" fill="none" stroke="{marker.color}" stroke-width="2"/>')
+                        mx, my = sx(xv), sy(first.y[idx])
+                        parts.append(f'<circle cx="{mx:.1f}" cy="{my:.1f}" r="{marker.size / 2}" fill="none" stroke="{marker.color}" stroke-width="2"/>')
+                        if marker.label:
+                            parts.append(f'<text x="{mx:.1f}" y="{my - marker.size / 2 - 3:.1f}" text-anchor="middle" fill="{marker.color}" font-size="9">{escape(marker.label)}</text>')
 
     # Axes
     parts.append(f'<line x1="{ml}" y1="{mt}" x2="{ml}" y2="{mt + ph}" stroke="{theme["axis"]}" stroke-width="1"/>')
