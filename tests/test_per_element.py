@@ -238,7 +238,7 @@ class TestInlineTheme(unittest.TestCase):
         spec = ChartSpec(title="Default", theme="light")
         spec.add_trace([1, 2], [10, 20], trace_type="bar")
         svg = render(spec, "svg")
-        assert "#ffffff" in svg  # light theme bg
+        assert "#f5f7f5" in svg  # light theme bg
 
     def test_unknown_string_theme_falls_back(self):
         spec = ChartSpec(title="Unknown", theme="nonexistent")
@@ -372,7 +372,7 @@ class TestBorderAndFill(unittest.TestCase):
         spec = ChartSpec(theme="light")
         spec.add_trace([1, 2], [10, 20], trace_type="bar")
         svg = render(spec, "svg")
-        assert "#ffffff" in svg  # light theme bg
+        assert "#f5f7f5" in svg  # light theme bg
 
     def test_border_serialization(self):
         spec = ChartSpec()
@@ -431,7 +431,7 @@ class TestCustomTitle(unittest.TestCase):
         spec = ChartSpec(title="Default", theme="light")
         spec.add_trace([1, 2], [10, 20], trace_type="bar")
         svg = render(spec, "svg")
-        assert "#1a1a2e" in svg  # light theme text color
+        assert "#1a2a1a" in svg  # light theme text color
 
 
 class TestCustomAxisLabels(unittest.TestCase):
