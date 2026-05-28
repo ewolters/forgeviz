@@ -27,8 +27,9 @@ def charts_from_result(result: Any, **kwargs) -> list:
     - forgespc.models.ControlChartResult → control chart(s)
     - forgespc.models.ProcessCapability → capability histogram
     - forgespc.bayesian.BayesianCapabilityResult → bayesian capability chart
-    - forgestat.core.types.TestResult subclasses → (no chart, returns [])
-    - forgestat.core.types.CorrelationResult → scatter matrix
+    - forgestat group tests (TTest/Anova/RankTest/PostHoc/...) → box plot or
+      histogram, built from `groups=`/`data=` kwargs (result carries no raw data)
+    - forgestat.core.types.CorrelationResult → scatter / scatter matrix from `data_dict=`
     - dict with 'chart_type' key → already a spec, pass through
     """
     if result is None:
@@ -68,9 +69,78 @@ def charts_from_result(result: Any, **kwargs) -> list:
         return _charts_from_gage_rr(result, **kwargs)
 
     # --- forgestat types ---
-    # Pure statistical results don't produce charts by default.
-    # The handler or chain layer can request viz separately.
+    # Statistical result objects carry only summary stats, not the raw arrays,
+    # so the chart is built from the data context the caller passes as kwargs
+    # (groups=dict / data=list / data_dict=dict). Returns [] when no usable
+    # context is supplied — the analysis still renders stats + summary.
 
+    if type_name in _DISTRIBUTION_RESULTS:
+        return _charts_from_distribution(**kwargs)
+
+    if type_name == "CorrelationResult":
+        return _charts_from_correlation(**kwargs)
+
+    return []
+
+
+# Statistical results whose natural visual is a distribution view — a box plot
+# comparing groups (group/paired tests) or a histogram of one sample
+# (one-sample tests, normality/outlier checks).
+_DISTRIBUTION_RESULTS = {
+    "TestResult",  # base class — some rank tests (kruskal, mood) return it directly
+    "TTestResult", "AnovaResult", "Anova2Result", "RankTestResult",
+    "PostHocResult", "EquivalenceResult", "ProportionResult", "ChiSquareResult",
+    "AssumptionCheck",
+}
+
+
+def _as_list(values) -> list:
+    """Coerce a numpy array / sequence to a plain list of floats."""
+    try:
+        return [float(v) for v in values]
+    except (TypeError, ValueError):
+        return list(values)
+
+
+def _charts_from_distribution(groups=None, data=None, **kwargs) -> list:
+    """Group test → box plot of the groups; one sample → histogram.
+
+    `groups` is {name: sequence}; `data` is a single sequence (one-sample).
+    """
+    if groups:
+        datasets = {str(k): _as_list(v) for k, v in groups.items() if len(v)}
+        if len(datasets) >= 2:
+            from ..charts.distribution import box_plot
+            return [box_plot(datasets, title=kwargs.get("title", "Group Comparison"))]
+        if len(datasets) == 1:
+            data = next(iter(datasets.values()))
+    if data is not None:
+        vals = _as_list(data)
+        if vals:
+            from ..charts.distribution import histogram
+            return [histogram(
+                vals, title=kwargs.get("title", "Distribution"),
+                target=kwargs.get("target"),
+                show_normal=kwargs.get("show_normal", False),
+            )]
+    return []
+
+
+def _charts_from_correlation(data_dict=None, **kwargs) -> list:
+    """Correlation → scatter (2 variables) or scatter matrix (>2 variables)."""
+    if not data_dict:
+        return []
+    cols = [c for c in data_dict if data_dict[c]]
+    if len(cols) == 2:
+        from ..charts.scatter import scatter
+        return [scatter(
+            _as_list(data_dict[cols[0]]), _as_list(data_dict[cols[1]]),
+            title=f"{cols[0]} vs {cols[1]}",
+            x_label=cols[0], y_label=cols[1], show_regression=True,
+        )]
+    if len(cols) > 2:
+        from ..charts.statistical import scatter_matrix
+        return scatter_matrix({c: _as_list(data_dict[c]) for c in cols})
     return []
 
 

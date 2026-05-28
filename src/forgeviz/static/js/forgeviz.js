@@ -927,8 +927,16 @@
         if (!allX.length) allX = [0, 1];
         if (!allY.length) allY = [0, 1];
 
-        const xNice = niceRange(Math.min(...allX), Math.max(...allX), 8);
-        const yNice = niceRange(Math.min(...allY), Math.max(...allY), 6);
+        let xNice = niceRange(Math.min(...allX), Math.max(...allX), 8);
+        let yNice = niceRange(Math.min(...allY), Math.max(...allY), 6);
+        // Honor zoom/pan view bounds injected by forgeviz-interact.js (rerender).
+        const _xv = spec.x_axis || {}, _yv = spec.y_axis || {};
+        if (typeof _xv._viewMin === 'number' && typeof _xv._viewMax === 'number') {
+            xNice = { min: _xv._viewMin, max: _xv._viewMax, step: (_xv._viewMax - _xv._viewMin) / 8 };
+        }
+        if (typeof _yv._viewMin === 'number' && typeof _yv._viewMax === 'number') {
+            yNice = { min: _yv._viewMin, max: _yv._viewMax, step: (_yv._viewMax - _yv._viewMin) / 6 };
+        }
         const sx = linearScale([xNice.min, xNice.max], [ml, ml + pw]);
         const sy = linearScale([yNice.min, yNice.max], [mt + ph, mt]);
 
@@ -1018,8 +1026,21 @@
         // Data elements for hover
         const dataPoints = [];
 
+        // Clip data to the plot area so zoom/pan can't overflow the axes.
+        // Only the data layer is clipped — axes, ticks, and labels live outside it.
+        const _clipId = 'fvclip-' + (container.id || ('x' + Math.floor(Math.random() * 1e6)));
+        const _defs = svgEl('defs');
+        const _clip = svgEl('clipPath', { id: _clipId });
+        _clip.appendChild(svgEl('rect', { x: ml, y: mt, width: pw, height: ph }));
+        _defs.appendChild(_clip);
+        svg.appendChild(_defs);
+        const plotLayer = svgEl('g', { 'clip-path': 'url(#' + _clipId + ')' });
+        svg.appendChild(plotLayer);
+
         // Traces
         (spec.traces || []).forEach((t, ti) => {
+            // Append data elements to the clipped plot layer, not the raw svg.
+            const svg = plotLayer;
             // Dict traces — special chart types without x/y arrays
             if (!t.x || !t.y) {
                 _renderDictTrace(svg, t, ti, theme, ml, mt, pw, ph, W, H, spec);
@@ -1149,6 +1170,7 @@
 
         // Special markers (OOC points, etc.)
         (spec.markers || []).forEach(m => {
+            const svg = plotLayer;
             if (!m.indices || !spec.traces || !spec.traces[0]) return;
             const t0 = spec.traces[0];
             m.indices.forEach(idx => {

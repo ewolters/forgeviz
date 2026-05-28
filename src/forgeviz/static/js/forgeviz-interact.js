@@ -28,15 +28,88 @@
     var SNAP_RADIUS = 20;  // px — snap crosshair to nearest point within this
     var MIN_ZOOM_BOX = 8;  // px — minimum drag distance to trigger box zoom
     var ZOOM_FACTOR  = 0.1; // scroll zoom sensitivity
-    var TOOLBAR_BG   = 'rgba(13,18,13,0.9)';
-    var TOOLBAR_BORDER = '1px solid rgba(255,255,255,0.1)';
-    var ACCENT       = '#4a9f6e';
+
+    // ====================================================================
+    // Theme — derived per-instance from container._currentSpec.theme
+    // (set by forgeviz.js render). Falls back to the legacy dark palette
+    // when no theme is present so standalone charts still look right.
+    // ====================================================================
+
+    var DEFAULT_THEME = {
+        accent: '#4a9f6e',
+        bg: 'rgba(13,18,13,0.9)',
+        text: '#e8efe8',
+        grid: 'rgba(255,255,255,0.25)',
+        annotation: '#e8c547',
+        font: 'JetBrains Mono,monospace',
+    };
+
+    // Convert any CSS color (#rgb, #rrggbb, rgb(), rgba()) to an rgba() string
+    // with the given alpha. Non-parseable colors pass through unchanged.
+    function withAlpha(color, alpha) {
+        if (!color) return 'rgba(0,0,0,' + alpha + ')';
+        if (color[0] === '#') {
+            var hex = color.slice(1);
+            if (hex.length === 3) {
+                hex = hex[0] + hex[0] + hex[1] + hex[1] + hex[2] + hex[2];
+            }
+            var r = parseInt(hex.slice(0, 2), 16);
+            var g = parseInt(hex.slice(2, 4), 16);
+            var b = parseInt(hex.slice(4, 6), 16);
+            return 'rgba(' + r + ',' + g + ',' + b + ',' + alpha + ')';
+        }
+        var m = color.match(/^rgba?\(([^)]+)\)/);
+        if (m) {
+            var parts = m[1].split(',');
+            return 'rgba(' + parts[0].trim() + ',' + parts[1].trim() + ',' +
+                   parts[2].trim() + ',' + alpha + ')';
+        }
+        return color;
+    }
+
+    // Build the palette the interaction layer paints with, from the chart's
+    // own theme. Mirrors the theme keys forgeviz.js uses (accent/bg/text/axis).
+    function resolveTheme(container) {
+        var spec = (container && container._currentSpec) || {};
+        var t = spec.theme;
+        if (typeof t === 'string') t = (FV.themes && FV.themes[t]) || null;
+        t = t || {};
+        var accent = t.accent || DEFAULT_THEME.accent;
+        var bg = t.bg || t.plotBg || DEFAULT_THEME.bg;
+        var text = t.text || DEFAULT_THEME.text;
+        var grid = t.axis || t.grid || DEFAULT_THEME.grid;
+        return {
+            accent: accent,
+            font: t.font || DEFAULT_THEME.font,
+            annotation: t.warn || DEFAULT_THEME.annotation,
+            toolbarBg: withAlpha(bg, 0.92),
+            toolbarBorder: '1px solid ' + withAlpha(text, 0.15),
+            btnHover: withAlpha(accent, 0.2),
+            btnActive: withAlpha(accent, 0.3),
+            crosshairLine: grid,
+            crosshairAccent: withAlpha(accent, 0.6),
+            labelText: text,
+            labelBg: withAlpha(bg, 0.9),
+            overlayFill: withAlpha(accent, 0.12),
+            overlayStroke: accent,
+            inputBg: withAlpha(bg, 0.95),
+        };
+    }
 
     // ====================================================================
     // Per-instance state (WeakMap keyed by container element)
     // ====================================================================
 
     var instances = new WeakMap();
+
+    // A chart is zoomable only if it has at least one cartesian trace (numeric
+    // x AND y arrays). Dict-trace charts (box, pie, sankey, …) have no zoomable
+    // domain, so zoom/pan/select controls are hidden for them.
+    function isZoomable(container) {
+        var spec = container && container._currentSpec;
+        var traces = (spec && spec.traces) || [];
+        return traces.some(function(t) { return t && t.x && t.y; });
+    }
 
     // ====================================================================
     // SVG namespace helper
@@ -145,11 +218,11 @@
         pan:       'M8 1v4m0 6v4M1 8h4m6 0h4M5 5L3 3m10 10l-2-2m0-6l2-2M5 11l-2 2',
     };
 
-    function createIcon(name, size) {
+    function createIcon(name, size, accent) {
         size = size || 14;
         var svg = svgEl('svg', {
             width: size, height: size, viewBox: '0 0 16 16',
-            fill: 'none', stroke: ACCENT, 'stroke-width': '1.5',
+            fill: 'none', stroke: accent || DEFAULT_THEME.accent, 'stroke-width': '1.5',
             'stroke-linecap': 'round', 'stroke-linejoin': 'round',
         });
         svg.innerHTML = '<path d="' + (ICONS[name] || '') + '"/>';
@@ -161,12 +234,13 @@
     // ====================================================================
 
     function createToolbar(container, state, api) {
+        var th = state.theme || resolveTheme(container);
         var bar = document.createElement('div');
         bar.className = 'fvi-toolbar';
         bar.style.cssText = [
             'position:absolute', 'top:4px', 'right:4px',
             'display:flex', 'gap:2px', 'padding:3px 4px',
-            'background:' + TOOLBAR_BG, 'border:' + TOOLBAR_BORDER,
+            'background:' + th.toolbarBg, 'border:' + th.toolbarBorder,
             'border-radius:6px', 'z-index:1002',
             'opacity:0', 'transition:opacity 0.15s',
             'pointer-events:none',
@@ -181,13 +255,13 @@
                 'align-items:center', 'justify-content:center',
                 'transition:background 0.1s',
             ].join(';') + ';';
-            btn.appendChild(createIcon(iconName));
+            btn.appendChild(createIcon(iconName, 14, th.accent));
             btn.addEventListener('click', function(e) {
                 e.stopPropagation();
                 onClick(btn);
             });
             btn.addEventListener('mouseenter', function() {
-                btn.style.background = 'rgba(74,159,110,0.2)';
+                btn.style.background = th.btnHover;
             });
             btn.addEventListener('mouseleave', function() {
                 btn.style.background = 'none';
@@ -201,66 +275,72 @@
             state.mode = mode;
             Object.keys(modeButtons).forEach(function(k) {
                 modeButtons[k].style.background =
-                    (k === mode) ? 'rgba(74,159,110,0.3)' : 'none';
+                    (k === mode) ? th.btnActive : 'none';
             });
         }
 
-        // Zoom In
-        bar.appendChild(makeBtn('zoomIn', 'Zoom In', function() {
-            zoomBy(container, state, 0.3);
-        }));
+        // Zoom / pan / select only apply to cartesian (numeric x/y) charts.
+        // Categorical charts (box, pie, …) have no zoomable domain, so these
+        // controls are omitted rather than shown as no-ops.
+        if (isZoomable(container)) {
+            // Zoom In
+            bar.appendChild(makeBtn('zoomIn', 'Zoom In', function() {
+                zoomBy(container, state, 0.3);
+            }));
 
-        // Zoom Out
-        bar.appendChild(makeBtn('zoomOut', 'Zoom Out', function() {
-            zoomBy(container, state, -0.3);
-        }));
+            // Zoom Out
+            bar.appendChild(makeBtn('zoomOut', 'Zoom Out', function() {
+                zoomBy(container, state, -0.3);
+            }));
 
-        // Reset Zoom
-        bar.appendChild(makeBtn('zoomReset', 'Reset Zoom (double-click)', function() {
-            api.resetZoom();
-        }));
+            // Reset Zoom
+            bar.appendChild(makeBtn('zoomReset', 'Reset Zoom (double-click)', function() {
+                api.resetZoom();
+            }));
 
-        // Separator
-        var sep1 = document.createElement('div');
-        sep1.style.cssText = 'width:1px;background:rgba(255,255,255,0.1);margin:2px 2px;';
-        bar.appendChild(sep1);
+            // Separator
+            var sep1 = document.createElement('div');
+            sep1.style.cssText = 'width:1px;background:' + withAlpha(th.labelText, 0.12) + ';margin:2px 2px;';
+            bar.appendChild(sep1);
 
-        // Pan mode
-        var panBtn = makeBtn('pan', 'Pan Mode', function() {
-            setActiveMode(state.mode === 'pan' ? 'default' : 'pan');
-            updateCursor(container, state);
-        });
-        modeButtons.pan = panBtn;
-        bar.appendChild(panBtn);
+            // Pan mode
+            var panBtn = makeBtn('pan', 'Pan Mode', function() {
+                setActiveMode(state.mode === 'pan' ? 'default' : 'pan');
+                updateCursor(container, state);
+            });
+            modeButtons.pan = panBtn;
+            bar.appendChild(panBtn);
 
-        // Box select
-        var boxBtn = makeBtn('boxSelect', 'Box Select (Shift+drag)', function() {
-            setActiveMode(state.mode === 'select-box' ? 'default' : 'select-box');
-            updateCursor(container, state);
-        });
-        modeButtons['select-box'] = boxBtn;
-        bar.appendChild(boxBtn);
+            // Box select
+            var boxBtn = makeBtn('boxSelect', 'Box Select (Shift+drag)', function() {
+                setActiveMode(state.mode === 'select-box' ? 'default' : 'select-box');
+                updateCursor(container, state);
+            });
+            modeButtons['select-box'] = boxBtn;
+            bar.appendChild(boxBtn);
 
-        // Lasso select
-        var lassoBtn = makeBtn('lasso', 'Lasso Select (Alt+drag)', function() {
-            setActiveMode(state.mode === 'select-lasso' ? 'default' : 'select-lasso');
-            updateCursor(container, state);
-        });
-        modeButtons['select-lasso'] = lassoBtn;
-        bar.appendChild(lassoBtn);
+            // Lasso select
+            var lassoBtn = makeBtn('lasso', 'Lasso Select (Alt+drag)', function() {
+                setActiveMode(state.mode === 'select-lasso' ? 'default' : 'select-lasso');
+                updateCursor(container, state);
+            });
+            modeButtons['select-lasso'] = lassoBtn;
+            bar.appendChild(lassoBtn);
 
-        // Separator
-        var sep2 = document.createElement('div');
-        sep2.style.cssText = 'width:1px;background:rgba(255,255,255,0.1);margin:2px 2px;';
-        bar.appendChild(sep2);
+            // Separator
+            var sep2 = document.createElement('div');
+            sep2.style.cssText = 'width:1px;background:' + withAlpha(th.labelText, 0.12) + ';margin:2px 2px;';
+            bar.appendChild(sep2);
+        }
 
         // Crosshair toggle
         var chBtn = makeBtn('crosshair', 'Toggle Crosshair', function(btn) {
             state.crosshair = !state.crosshair;
             btn.style.background = state.crosshair
-                ? 'rgba(74,159,110,0.3)' : 'none';
+                ? th.btnActive : 'none';
             if (!state.crosshair) removeCrosshair(state);
         });
+        if (state.crosshair) chBtn.style.background = th.btnActive;
         bar.appendChild(chBtn);
 
         // Download SVG
@@ -320,23 +400,24 @@
 
     function ensureCrosshairLayer(state, svg) {
         if (state._crosshairGroup) return state._crosshairGroup;
+        var th = state.theme || DEFAULT_THEME;
         var g = svgEl('g', { class: 'fvi-crosshair' });
         var hLine = svgEl('line', {
-            stroke: 'rgba(255,255,255,0.25)', 'stroke-width': '1',
+            stroke: th.crosshairLine, 'stroke-width': '1',
             'stroke-dasharray': '4,3', 'pointer-events': 'none',
         });
         var vLine = svgEl('line', {
-            stroke: 'rgba(255,255,255,0.25)', 'stroke-width': '1',
+            stroke: th.crosshairLine, 'stroke-width': '1',
             'stroke-dasharray': '4,3', 'pointer-events': 'none',
         });
         var label = svgEl('text', {
-            fill: '#e8efe8', 'font-size': '10',
-            'font-family': 'JetBrains Mono,monospace',
+            fill: th.labelText, 'font-size': '10',
+            'font-family': th.font,
             'pointer-events': 'none',
         });
         // Background rect behind label for readability
         var labelBg = svgEl('rect', {
-            fill: 'rgba(13,18,13,0.85)', rx: '3', 'pointer-events': 'none',
+            fill: th.labelBg, rx: '3', 'pointer-events': 'none',
         });
         g.appendChild(hLine);
         g.appendChild(vLine);
@@ -428,12 +509,13 @@
         state._chLabelBg.setAttribute('height', 15);
 
         // Highlight snapped point
+        var th = state.theme || DEFAULT_THEME;
         if (snapped) {
-            state._chH.setAttribute('stroke', 'rgba(74,159,110,0.5)');
-            state._chV.setAttribute('stroke', 'rgba(74,159,110,0.5)');
+            state._chH.setAttribute('stroke', th.crosshairAccent);
+            state._chV.setAttribute('stroke', th.crosshairAccent);
         } else {
-            state._chH.setAttribute('stroke', 'rgba(255,255,255,0.25)');
-            state._chV.setAttribute('stroke', 'rgba(255,255,255,0.25)');
+            state._chH.setAttribute('stroke', th.crosshairLine);
+            state._chV.setAttribute('stroke', th.crosshairLine);
         }
     }
 
@@ -475,6 +557,13 @@
         state._suppressAutoInteract = true;
         FV.render(container, spec, opts);
         state._suppressAutoInteract = false;
+
+        // FV.render() did container.innerHTML = '' — that detached our toolbar
+        // (a container child) and the old crosshair group (inside the old svg).
+        // Re-attach the toolbar element and drop the stale crosshair reference
+        // so it gets rebuilt inside the fresh svg.
+        if (state._toolbar) container.appendChild(state._toolbar);
+        state._crosshairGroup = null;
 
         // Re-collect data points and re-attach event listeners
         var svg = container.querySelector('svg');
@@ -577,9 +666,10 @@
         state._selectedPoints = selected;
 
         // Highlight selected points
+        var selStroke = (state.theme || DEFAULT_THEME).labelText;
         selected.forEach(function(p) {
             p.el.setAttribute('r', p.origR * 1.8);
-            p.el.setAttribute('stroke', '#ffffff');
+            p.el.setAttribute('stroke', selStroke);
             p.el.setAttribute('stroke-width', '2');
             p.el.setAttribute('opacity', '1');
         });
@@ -627,9 +717,10 @@
         var selSet = new Set(state.selection);
         var selected = points.filter(function(p) { return selSet.has(p.idx); });
         if (selected.length) {
+            var selStroke = (state.theme || DEFAULT_THEME).labelText;
             selected.forEach(function(p) {
                 p.el.setAttribute('r', p.origR * 1.8);
-                p.el.setAttribute('stroke', '#ffffff');
+                p.el.setAttribute('stroke', selStroke);
                 p.el.setAttribute('stroke-width', '2');
                 p.el.setAttribute('opacity', '1');
             });
@@ -670,6 +761,8 @@
         var bounds = getPlotBounds(container);
         if (!svg || !bounds) return;
 
+        var th = state.theme || DEFAULT_THEME;
+        var annColor = th.annotation;
         var px = bounds.sx(ann.x);
         var py = bounds.sy(ann.y);
 
@@ -687,13 +780,13 @@
 
         g.appendChild(svgEl('line', {
             x1: px, y1: py, x2: labelX, y2: labelY + 6,
-            stroke: '#e8c547', 'stroke-width': '1', 'stroke-dasharray': '3,2',
+            stroke: annColor, 'stroke-width': '1', 'stroke-dasharray': '3,2',
             'pointer-events': 'none',
         }));
 
         // Small circle at the point
         g.appendChild(svgEl('circle', {
-            cx: px, cy: py, r: '3', fill: '#e8c547',
+            cx: px, cy: py, r: '3', fill: annColor,
             'pointer-events': 'none',
         }));
 
@@ -702,16 +795,16 @@
         g.appendChild(svgEl('rect', {
             x: labelX - 4, y: labelY - 10,
             width: textW, height: 16,
-            fill: 'rgba(0,0,0,0.8)', rx: '3',
-            stroke: '#e8c547', 'stroke-width': '0.5',
+            fill: th.labelBg, rx: '3',
+            stroke: annColor, 'stroke-width': '0.5',
             'pointer-events': 'none',
         }));
 
         // Label text
         g.appendChild(svgEl('text', {
             x: labelX + 2, y: labelY + 2,
-            fill: '#e8c547', 'font-size': '10',
-            'font-family': 'Inter,system-ui,sans-serif',
+            fill: annColor, 'font-size': '10',
+            'font-family': th.font,
             'pointer-events': 'none',
         })).textContent = ann.text;
 
@@ -725,14 +818,15 @@
     }
 
     function showAnnotationInput(container, state, dataX, dataY, pixelX, pixelY) {
+        var th = state.theme || DEFAULT_THEME;
         var input = document.createElement('input');
         input.type = 'text';
         input.placeholder = 'Add annotation...';
         input.style.cssText = [
             'position:absolute',
-            'background:rgba(13,18,13,0.95)',
-            'color:#e8efe8',
-            'border:1px solid ' + ACCENT,
+            'background:' + th.inputBg,
+            'color:' + th.labelText,
+            'border:1px solid ' + th.accent,
             'padding:4px 8px',
             'border-radius:4px',
             'font-size:11px',
@@ -809,10 +903,11 @@
         var points = state._dataPoints || [];
         var idxSet = new Set(indices);
 
+        var th = state.theme || DEFAULT_THEME;
         points.forEach(function(p) {
             if (idxSet.has(p.idx)) {
                 p.el.setAttribute('r', p.origR * 1.8);
-                p.el.setAttribute('stroke', '#e8c547');
+                p.el.setAttribute('stroke', th.annotation);
                 p.el.setAttribute('stroke-width', '2');
                 p.el.setAttribute('opacity', '1');
             } else {
@@ -840,10 +935,11 @@
     // Overlay elements (selection rectangles, lasso paths)
     // ====================================================================
 
-    function createOverlayRect(svg) {
+    function createOverlayRect(svg, th) {
+        th = th || DEFAULT_THEME;
         var rect = svgEl('rect', {
-            fill: 'rgba(74,159,110,0.12)',
-            stroke: ACCENT,
+            fill: th.overlayFill,
+            stroke: th.overlayStroke,
             'stroke-width': '1',
             'stroke-dasharray': '4,3',
             'pointer-events': 'none',
@@ -859,10 +955,11 @@
         rect.setAttribute('height', Math.abs(y2 - y1));
     }
 
-    function createLassoPath(svg) {
+    function createLassoPath(svg, th) {
+        th = th || DEFAULT_THEME;
         var path = svgEl('path', {
-            fill: 'rgba(74,159,110,0.08)',
-            stroke: ACCENT,
+            fill: withAlpha(th.overlayStroke, 0.08),
+            stroke: th.overlayStroke,
             'stroke-width': '1',
             'stroke-dasharray': '3,2',
             'pointer-events': 'none',
@@ -940,9 +1037,9 @@
             dragState.lassoPoints = [[pos.x, pos.y]];
 
             if (mode === 'zoom' || mode === 'select-box') {
-                dragState.overlay = createOverlayRect(svg);
+                dragState.overlay = createOverlayRect(svg, state.theme);
             } else if (mode === 'select-lasso') {
-                dragState.overlay = createLassoPath(svg);
+                dragState.overlay = createLassoPath(svg, state.theme);
             } else if (mode === 'pan') {
                 svg.style.cursor = 'grabbing';
             }
@@ -1247,6 +1344,7 @@
 
         // Build state
         var state = {
+            theme: resolveTheme(container),
             mode: options.mode || 'default',
             viewBox: null,
             selection: [],
@@ -1339,13 +1437,10 @@
 
         // Create toolbar (after api is defined so reset button can call api.resetZoom)
         toolbar = createToolbar(container, state, api);
-
-        // Enable crosshair if requested
-        if (state.crosshair) {
-            var chBtns = toolbar.querySelectorAll('button');
-            // The crosshair toggle is the 7th button (index 6)
-            if (chBtns[6]) chBtns[6].style.background = 'rgba(74,159,110,0.3)';
-        }
+        // Keep a reference so rerender() can re-attach it after FV.render wipes
+        // the container (createToolbar already highlights the crosshair button
+        // when state.crosshair is set, so no fragile button-index lookup here).
+        state._toolbar = toolbar;
 
         // Auto-join link group if specified
         if (options.linkGroup) {
