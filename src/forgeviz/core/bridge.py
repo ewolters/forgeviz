@@ -179,10 +179,36 @@ def _charts_from_bayesian_capability(result, **kwargs) -> list:
 
 
 def _charts_from_advanced_spc(result, type_name, **kwargs) -> list:
-    """CUSUM/EWMA result → control chart via from_spc_result if compatible."""
+    """CUSUMResult / EWMAResult → control chart."""
+    from ..charts.control import control_chart
+    title = kwargs.get("title")
+
+    if type_name == "EWMAResult":
+        values = list(result.ewma_values)
+        cl = result.target if result.target is not None else sum(values) / len(values)
+        return [control_chart(
+            data_points=values,
+            ucl=result.ucl_steady, cl=cl, lcl=result.lcl_steady,
+            ooc_indices=list(result.out_of_control_indices or []),
+            title=title or "EWMA Chart", chart_type_label="EWMA",
+        )]
+
+    if type_name == "CUSUMResult":
+        h = (result.h or 5.0) * (result.sigma or 1.0)
+        return [control_chart(
+            data_points=list(result.cusum_pos),
+            ucl=h, cl=0.0, lcl=0.0,
+            ooc_indices=list(result.signals_up or []),
+            title=title or "CUSUM Chart", chart_type_label="CUSUM (C+)",
+            secondary_data=list(result.cusum_neg),
+            secondary_ucl=h, secondary_cl=0.0, secondary_lcl=0.0,
+            secondary_title="CUSUM (C-)",
+        )]
+
+    # Legacy control-chart-shaped advanced results
     if hasattr(result, "data_points") and hasattr(result, "limits"):
         from ..charts.control import from_spc_result
-        return [from_spc_result(result, title=kwargs.get("title", f"{type_name} Chart"))]
+        return [from_spc_result(result, title=title or f"{type_name} Chart")]
     return []
 
 
