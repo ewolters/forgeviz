@@ -68,6 +68,11 @@ def charts_from_result(result: Any, **kwargs) -> list:
     if type_name == "GageRRResult":
         return _charts_from_gage_rr(result, **kwargs)
 
+    # --- forgeml types ---
+
+    if type_name == "MLResult":
+        return _charts_from_ml(result, **kwargs)
+
     # --- forgestat types ---
     # Statistical result objects carry only summary stats, not the raw arrays,
     # so the chart is built from the data context the caller passes as kwargs
@@ -210,6 +215,21 @@ def _charts_from_advanced_spc(result, type_name, **kwargs) -> list:
         from ..charts.control import from_spc_result
         return [from_spc_result(result, title=title or f"{type_name} Chart")]
     return []
+
+
+def _charts_from_ml(result, **kwargs) -> list:
+    """MLResult → feature-importance bar (when the model reports importances)."""
+    fi = getattr(result, "feature_importance", None)
+    if not fi:
+        return []
+    from ..charts.generic import bar
+    items = sorted(fi.items(), key=lambda kv: kv[1], reverse=True)
+    return [bar(
+        [str(k) for k, _ in items],
+        [float(v) for _, v in items],
+        title="Feature Importance",
+        horizontal=True,
+    )]
 
 
 def _charts_from_gage_rr(result, **kwargs) -> list:
