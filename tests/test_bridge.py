@@ -199,6 +199,52 @@ class TestDistributionBridge:
         assert any(c.chart_type == "qq_plot" for c in charts)
 
 
+class GageRRResult:
+    def __init__(self):
+        self.design = "crossed"
+        self.pct_gage_rr = 18.0
+        self.pct_repeatability = 12.0
+        self.pct_reproducibility = 6.0
+        self.pct_part = 82.0
+        self.ndc = 4
+
+
+class TestGageRRBridge:
+    def test_components_only_without_raw_data(self):
+        charts = charts_from_result(GageRRResult())
+        assert len(charts) == 1
+        assert charts[0].chart_type == "gage_components"
+
+    def test_full_panel_with_measurements(self):
+        meas = [10.1, 10.2, 9.9, 10.0, 10.3, 10.1]
+        parts = ["P1", "P1", "P2", "P2", "P3", "P3"]
+        ops = ["A", "B", "A", "B", "A", "B"]
+        charts = charts_from_result(GageRRResult(), measurements=meas, parts=parts, operators=ops)
+        assert len(charts) == 3
+        assert {c.chart_type for c in charts} == {"gage_components", "gage_by_part", "gage_by_operator"}
+
+
+class KaplanMeierResult:
+    def __init__(self):
+        self.median_survival = 50.0
+        self.mean_survival = 55.0
+        self.n_censored = 2
+
+
+class TestKaplanMeierBridge:
+    def test_km_with_times_produces_survival_curve(self):
+        charts = charts_from_result(
+            KaplanMeierResult(),
+            failure_times=[5, 10, 15, 20, 25, 30, 40, 50],
+            censored=[False, False, False, True, False, False, True, False],
+        )
+        assert len(charts) == 1
+        assert charts[0].chart_type == "survival"
+
+    def test_km_without_times_yields_no_chart(self):
+        assert charts_from_result(KaplanMeierResult()) == []
+
+
 class TestUnknownResult:
     def test_unknown_type_returns_empty(self):
         class SomethingElse:

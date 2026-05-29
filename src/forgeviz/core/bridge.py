@@ -76,6 +76,9 @@ def charts_from_result(result: Any, **kwargs) -> list:
     if type_name == "BayesianTestResult":
         return _charts_from_bayesian_test(result, **kwargs)
 
+    if type_name == "KaplanMeierResult":
+        return _charts_from_kaplan_meier(result, **kwargs)
+
     # --- forgeml types ---
 
     if type_name == "MLResult":
@@ -355,6 +358,15 @@ def _charts_from_regression(result, **kwargs) -> list:
     return four_in_one(list(fitted), list(residuals))
 
 
+def _charts_from_kaplan_meier(result, failure_times=None, censored=None, **kwargs) -> list:
+    """KaplanMeierResult → Kaplan-Meier survival curve from the raw times the
+    handler forwards via chart_ctx (events marked censored)."""
+    if not failure_times:
+        return []
+    from ..charts.reliability import survival_curve
+    return [survival_curve(list(failure_times), censored=censored)]
+
+
 def _charts_from_bayesian_test(result, **kwargs) -> list:
     """BayesianTestResult → Normal-approximation posterior density.
 
@@ -373,11 +385,30 @@ def _charts_from_bayesian_test(result, **kwargs) -> list:
     )]
 
 
-def _charts_from_gage_rr(result, **kwargs) -> list:
-    """GageRRResult → gage R&R component charts."""
-    try:
-        from ..charts.gage import gage_rr_components
-        return [gage_rr_components(result)]
-    except Exception:
-        logger.debug("Gage R&R chart failed", exc_info=True)
-        return []
+def _charts_from_gage_rr(result, measurements=None, parts=None, operators=None, **kwargs) -> list:
+    """GageRRResult → variance-component bar, plus by-part and by-operator
+    spread plots when the raw measurements are supplied via chart_ctx.
+    """
+    from ..charts.gage import gage_rr_by_operator, gage_rr_by_part, gage_rr_components
+
+    pct = {
+        "gage_rr": getattr(result, "pct_gage_rr", 0),
+        "repeatability": getattr(result, "pct_repeatability", 0),
+        "reproducibility": getattr(result, "pct_reproducibility", 0),
+        "part_to_part": getattr(result, "pct_part", 0),
+    }
+    charts = [gage_rr_components(pct)]
+
+    if measurements is not None and parts is not None:
+        by_part: dict = {}
+        for m, p in zip(measurements, parts):
+            by_part.setdefault(str(p), []).append(float(m))
+        charts.append(gage_rr_by_part(list(by_part.keys()), by_part))
+
+    if measurements is not None and operators is not None:
+        by_op: dict = {}
+        for m, o in zip(measurements, operators):
+            by_op.setdefault(str(o), []).append(float(m))
+        charts.append(gage_rr_by_operator(list(by_op.keys()), by_op))
+
+    return charts
