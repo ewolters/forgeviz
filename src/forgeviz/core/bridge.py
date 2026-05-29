@@ -68,6 +68,14 @@ def charts_from_result(result: Any, **kwargs) -> list:
     if type_name == "GageRRResult":
         return _charts_from_gage_rr(result, **kwargs)
 
+    # --- forgestat reliability types ---
+
+    if type_name == "WeibullFit":
+        return _charts_from_weibull(result, **kwargs)
+
+    if type_name == "BayesianTestResult":
+        return _charts_from_bayesian_test(result, **kwargs)
+
     # --- forgeml types ---
 
     if type_name == "MLResult":
@@ -84,6 +92,11 @@ def charts_from_result(result: Any, **kwargs) -> list:
 
     if type_name == "CorrelationResult":
         return _charts_from_correlation(**kwargs)
+
+    # Regression-family results that expose residual diagnostics (fitted +
+    # residuals arrays) get the standard 4-in-1 panel, regardless of exact type.
+    if hasattr(result, "fitted") and hasattr(result, "residuals"):
+        return _charts_from_regression(result, **kwargs)
 
     return []
 
@@ -217,18 +230,127 @@ def _charts_from_advanced_spc(result, type_name, **kwargs) -> list:
     return []
 
 
-def _charts_from_ml(result, **kwargs) -> list:
-    """MLResult → feature-importance bar (when the model reports importances)."""
-    fi = getattr(result, "feature_importance", None)
-    if not fi:
-        return []
+def _charts_from_ml(result, X=None, **kwargs) -> list:
+    """MLResult → charts by algorithm.
+
+    Feature-importance models → importance bar; PCA → scree + PC1 loadings;
+    clustering → 2-D cluster scatter (needs the raw points X via chart_ctx) plus
+    a cluster-size bar. Returns [] for ML results with nothing plottable.
+    """
     from ..charts.generic import bar
-    items = sorted(fi.items(), key=lambda kv: kv[1], reverse=True)
-    return [bar(
-        [str(k) for k, _ in items],
-        [float(v) for _, v in items],
-        title="Feature Importance",
-        horizontal=True,
+    fi = getattr(result, "feature_importance", None)
+    if fi:
+        items = sorted(fi.items(), key=lambda kv: kv[1], reverse=True)
+        return [bar(
+            [str(k) for k, _ in items],
+            [float(v) for _, v in items],
+            title="Feature Importance",
+            horizontal=True,
+        )]
+
+    stats = getattr(result, "statistics", {}) or {}
+    if getattr(result, "algorithm", "") == "pca":
+        return _charts_from_pca(stats)
+    if "cluster_sizes" in stats:
+        return _charts_from_cluster(result, stats, X)
+    return []
+
+
+def _charts_from_pca(stats) -> list:
+    """PCA statistics → scree plot + PC1 loadings bar."""
+    from ..charts.generic import bar
+    charts = []
+    evr = stats.get("explained_variance_ratio") or []
+    if evr:
+        charts.append(bar(
+            [f"PC{i + 1}" for i in range(len(evr))],
+            [float(v) for v in evr],
+            title="Scree Plot — Explained Variance",
+            x_label="Component", y_label="Variance Ratio",
+        ))
+    pc1 = (stats.get("loadings") or {}).get("PC1") or {}
+    if pc1:
+        charts.append(bar(
+            list(pc1.keys()),
+            [float(v) for v in pc1.values()],
+            title="PC1 Loadings", x_label="Feature", y_label="Loading",
+            horizontal=True,
+        ))
+    return charts
+
+
+def _charts_from_cluster(result, stats, X) -> list:
+    """Clustering result → 2-D scatter coloured by label + cluster-size bar."""
+    from ..charts.generic import bar
+    from ..charts.scatter import scatter
+    charts = []
+    labels = getattr(result, "predictions", []) or []
+    if X is not None and labels and len(X) == len(labels):
+        xs = [float(row[0]) for row in X]
+        ys = [float(row[1]) if len(row) > 1 else 0.0 for row in X]
+        groups: dict = {}
+        for i, lab in enumerate(labels):
+            groups.setdefault(f"Cluster {lab}", []).append(i)
+        charts.append(scatter(
+            xs, ys, title="Cluster Assignments",
+            x_label="Feature 1", y_label="Feature 2", groups=groups,
+        ))
+    sizes = stats.get("cluster_sizes") or {}
+    if sizes:
+        charts.append(bar(
+            list(sizes.keys()), [float(v) for v in sizes.values()],
+            title="Cluster Sizes", x_label="Cluster", y_label="Count",
+        ))
+    return charts
+
+
+def _charts_from_weibull(result, failure_times=None, **kwargs) -> list:
+    """WeibullFit → probability plot + survival curve + hazard function.
+
+    The fit carries only parameters (shape/scale); the raw failure_times come
+    from the caller's chart_ctx. With the times we draw the full panel; with
+    parameters alone we can still show the hazard (bathtub) curve.
+    """
+    from ..charts.reliability import hazard_function, survival_curve, weibull_probability_plot
+    shape = getattr(result, "shape", 0.0)
+    scale = getattr(result, "scale", 0.0)
+    if not failure_times:
+        if shape and scale:
+            return [hazard_function(shape, scale)]
+        return []
+    times = list(failure_times)
+    return [
+        weibull_probability_plot(times, shape=shape, scale=scale),
+        survival_curve(times),
+        hazard_function(shape, scale),
+    ]
+
+
+def _charts_from_regression(result, **kwargs) -> list:
+    """Regression result with fitted/residuals → 4-in-1 diagnostic panel."""
+    fitted = getattr(result, "fitted", None)
+    residuals = getattr(result, "residuals", None)
+    if not fitted or not residuals:
+        return []
+    from ..charts.diagnostic import four_in_one
+    return four_in_one(list(fitted), list(residuals))
+
+
+def _charts_from_bayesian_test(result, **kwargs) -> list:
+    """BayesianTestResult → Normal-approximation posterior density.
+
+    The result is summary-only (no draws); a density needs both posterior
+    moments. Mean-only results (η²/R²) have nothing to plot, so return [].
+    """
+    mean = getattr(result, "posterior_mean", None)
+    std = getattr(result, "posterior_std", None)
+    if mean is None or not std or std <= 0:
+        return []
+    from ..charts.bayesian import posterior_density
+    return [posterior_density(
+        mean, std,
+        credible_interval=getattr(result, "credible_interval", None),
+        p_rope=getattr(result, "p_rope", None),
     )]
 
 

@@ -37,6 +37,49 @@ def bayesian_capability(
     return spec
 
 
+def posterior_density(
+    mean: float,
+    std: float,
+    credible_interval: tuple[float, float] | None = None,
+    p_rope: float | None = None,
+    title: str = "Posterior Distribution (Normal approx.)",
+) -> ChartSpec:
+    """Normal-approximation posterior density from summary moments.
+
+    Summary-only Bayesian results carry no draws, so this renders the
+    Normal(mean, std) implied by the posterior moments and shades the credible
+    interval. The title flags that this is an approximation, not sampled draws.
+    """
+    import math
+
+    spec = ChartSpec(
+        title=title, chart_type="posterior_density",
+        x_axis={"label": "Effect size"}, y_axis={"label": "Density"},
+    )
+    if std is None or std <= 0:
+        return spec
+
+    lo, hi = mean - 4 * std, mean + 4 * std
+    n = 121
+    xs = [lo + (hi - lo) * i / (n - 1) for i in range(n)]
+    coef = 1.0 / (std * math.sqrt(2 * math.pi))
+    ys = [coef * math.exp(-0.5 * ((x - mean) / std) ** 2) for x in xs]
+    spec.add_trace(xs, ys, name="Posterior", trace_type="line", color=get_color(0), width=2)
+
+    spec.add_reference_line(mean, color=get_color(0), dash="solid", label=f"Mean={mean:.3f}")
+    if credible_interval:
+        ci_lo, ci_hi = credible_interval
+        spec.add_reference_line(ci_lo, color=STATUS_DIM, dash="dotted", label=f"CI Low={ci_lo:.3f}")
+        spec.add_reference_line(ci_hi, color=STATUS_DIM, dash="dotted", label=f"CI High={ci_hi:.3f}")
+    if p_rope is not None:
+        spec.annotations.append({
+            "x": 0.7, "y": 0.9,
+            "text": f"P(in ROPE) = {p_rope * 100:.1f}%",
+            "color": STATUS_AMBER, "font_size": 11,
+        })
+    return spec
+
+
 def bayesian_changepoint(
     data: list[float],
     changepoint_index: int | None = None,
