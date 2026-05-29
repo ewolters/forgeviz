@@ -121,26 +121,35 @@ def _as_list(values) -> list:
 
 
 def _charts_from_distribution(groups=None, data=None, **kwargs) -> list:
-    """Group test → box plot of the groups; one sample → histogram.
-
-    `groups` is {name: sequence}; `data` is a single sequence (one-sample).
+    """Group test → box plot + a normal Q-Q per group; one sample → histogram
+    + a normal Q-Q. The Q-Q plot surfaces the normality assumption these tests
+    rest on. `groups` is {name: sequence}; `data` is a single sequence.
     """
+    from ..charts.diagnostic import qq_plot
+
     if groups:
         datasets = {str(k): _as_list(v) for k, v in groups.items() if len(v)}
         if len(datasets) >= 2:
             from ..charts.distribution import box_plot
-            return [box_plot(datasets, title=kwargs.get("title", "Group Comparison"))]
+            charts = [box_plot(datasets, title=kwargs.get("title", "Group Comparison"))]
+            for name, vals in datasets.items():
+                if len(vals) >= 3:
+                    charts.append(qq_plot(vals, title=f"Normal Q-Q — {name}"))
+            return charts
         if len(datasets) == 1:
             data = next(iter(datasets.values()))
     if data is not None:
         vals = _as_list(data)
         if vals:
             from ..charts.distribution import histogram
-            return [histogram(
+            charts = [histogram(
                 vals, title=kwargs.get("title", "Distribution"),
                 target=kwargs.get("target"),
                 show_normal=kwargs.get("show_normal", False),
             )]
+            if len(vals) >= 3:
+                charts.append(qq_plot(vals, title="Normal Q-Q Plot"))
+            return charts
     return []
 
 
@@ -169,21 +178,31 @@ def _charts_from_control_chart(result, **kwargs) -> list:
 
 
 def _charts_from_capability(result, **kwargs) -> list:
-    """ProcessCapability → capability histogram."""
-    from ..charts.capability import capability_histogram
+    """ProcessCapability → capability histogram + normal probability plot.
+
+    Normality is the assumption behind Cp/Cpk, so the probability plot ships
+    alongside the histogram whenever the raw sample is available via chart_ctx.
+    """
     from dataclasses import asdict
 
+    from ..charts.capability import capability_histogram
+    from ..charts.distribution import probability_plot
+
     d = asdict(result) if hasattr(result, "__dataclass_fields__") else result
-    if isinstance(d, dict):
-        data = kwargs.get("data", [])
-        if data is None or (hasattr(data, "__len__") and len(data) == 0):
-            return []
-        return [capability_histogram(
-            data=list(data),
+    if not isinstance(d, dict):
+        return []
+    data = kwargs.get("data", [])
+    if data is None or (hasattr(data, "__len__") and len(data) == 0):
+        return []
+    data = list(data)
+    return [
+        capability_histogram(
+            data=data,
             usl=d.get("usl"), lsl=d.get("lsl"), target=d.get("target"),
             cp=d.get("cp"), cpk=d.get("cpk"),
-        )]
-    return []
+        ),
+        probability_plot(data, distribution="normal", title="Normal Probability Plot"),
+    ]
 
 
 def _charts_from_bayesian_capability(result, **kwargs) -> list:
