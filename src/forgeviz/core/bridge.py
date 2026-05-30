@@ -84,6 +84,34 @@ def charts_from_result(result: Any, **kwargs) -> list:
     if type_name == "MLResult":
         return _charts_from_ml(result, **kwargs)
 
+    # --- forgestat timeseries types ---
+    # ARIMAResult/SARIMAResult also expose fitted+residuals, so they MUST be
+    # matched here by name, ahead of the duck-typed regression fallback below,
+    # or a forecast would be mis-rendered as a regression 4-in-1 panel.
+
+    if type_name == "DecompositionResult":
+        return _charts_from_decomposition(result, **kwargs)
+
+    if type_name == "ACFResult":
+        return _charts_from_acf(result, **kwargs)
+
+    if type_name == "CCFResult":
+        return _charts_from_ccf(result, **kwargs)
+
+    if type_name == "GrangerResult":
+        return _charts_from_granger(result, **kwargs)
+
+    if type_name == "ChangepointResult":
+        return _charts_from_changepoint(result, **kwargs)
+
+    if type_name in ("ARIMAResult", "SARIMAResult"):
+        return _charts_from_arima(result, **kwargs)
+
+    # --- forgestat power types ---
+
+    if type_name == "PowerResult":
+        return _charts_from_power(result, **kwargs)
+
     # --- forgestat types ---
     # Statistical result objects carry only summary stats, not the raw arrays,
     # so the chart is built from the data context the caller passes as kwargs
@@ -412,3 +440,170 @@ def _charts_from_gage_rr(result, measurements=None, parts=None, operators=None, 
         charts.append(gage_rr_by_operator(list(by_op.keys()), by_op))
 
     return charts
+
+
+# --- forgestat timeseries builders ---
+
+
+def _charts_from_decomposition(result, **kwargs) -> list:
+    """DecompositionResult → observed / trend / seasonal / residual line panel.
+
+    Each component the result actually carries becomes its own line chart; the
+    multi-chart list reads top-to-bottom like a classical STL panel.
+    """
+    from ..charts.generic import line
+    panels = [
+        ("Observed", getattr(result, "observed", [])),
+        ("Trend", getattr(result, "trend", [])),
+        ("Seasonal", getattr(result, "seasonal", [])),
+        ("Residual", getattr(result, "residual", [])),
+    ]
+    charts = []
+    for title, series in panels:
+        vals = _as_list(series)
+        if vals:
+            charts.append(line(
+                list(range(len(vals))), vals,
+                title=title, x_label="Period", y_label=title,
+            ))
+    return charts
+
+
+def _correlogram(values, bound, title):
+    """A correlogram bar with ±confidence-bound reference lines."""
+    from ..charts.generic import bar
+    vals = _as_list(values)
+    spec = bar(
+        [str(i) for i in range(len(vals))], vals,
+        title=title, x_label="Lag", y_label="Correlation",
+    )
+    if bound:
+        spec.add_reference_line(bound, axis="y", color="#888", dash="dashed",
+                                label="95% bound")
+        spec.add_reference_line(-bound, axis="y", color="#888", dash="dashed")
+    return spec
+
+
+def _charts_from_acf(result, **kwargs) -> list:
+    """ACFResult → ACF correlogram + PACF correlogram, each banded."""
+    bound = getattr(result, "confidence_bound", 0.0) or 0.0
+    charts = []
+    if _as_list(getattr(result, "acf_values", [])):
+        charts.append(_correlogram(result.acf_values, bound,
+                                   "Autocorrelation (ACF)"))
+    if _as_list(getattr(result, "pacf_values", [])):
+        charts.append(_correlogram(result.pacf_values, bound,
+                                   "Partial Autocorrelation (PACF)"))
+    return charts
+
+
+def _charts_from_ccf(result, **kwargs) -> list:
+    """CCFResult → cross-correlation bar over lags with ±confidence band."""
+    from ..charts.generic import bar
+    ccf = _as_list(getattr(result, "ccf_values", []))
+    if not ccf:
+        return []
+    lags = getattr(result, "lags", [])
+    cats = [str(l) for l in lags] if lags else [str(i) for i in range(len(ccf))]
+    spec = bar(cats, ccf, title="Cross-Correlation (CCF)",
+               x_label="Lag", y_label="Correlation")
+    bound = getattr(result, "confidence_bound", 0.0) or 0.0
+    if bound:
+        spec.add_reference_line(bound, axis="y", color="#888", dash="dashed",
+                                label="95% bound")
+        spec.add_reference_line(-bound, axis="y", color="#888", dash="dashed")
+    return [spec]
+
+
+def _charts_from_granger(result, alpha=0.05, **kwargs) -> list:
+    """GrangerResult → p-value-by-lag bar with the α significance threshold."""
+    from ..charts.generic import bar
+    rows = getattr(result, "results_by_lag", []) or []
+    if not rows:
+        return []
+    lags = [str(r.get("lag", i + 1)) for i, r in enumerate(rows)]
+    pvals = [float(r.get("p_value", 1.0)) for r in rows]
+    spec = bar(lags, pvals, title="Granger Causality — p-value by lag",
+               x_label="Lag", y_label="p-value")
+    spec.add_reference_line(float(alpha), axis="y", color="#888", dash="dashed",
+                            label=f"alpha = {alpha}")
+    return [spec]
+
+
+def _charts_from_changepoint(result, data=None, **kwargs) -> list:
+    """ChangepointResult → series line with a vertical marker at each
+    changepoint. The raw series isn't on the result, so the handler forwards it
+    via chart_ctx (data=...); without it there's nothing to draw."""
+    series = _as_list(data) if data is not None else []
+    if not series:
+        return []
+    from ..charts.generic import line
+    spec = line(list(range(len(series))), series, title="Changepoint Detection",
+                x_label="Index", y_label="Value")
+    for cp in getattr(result, "changepoints", []) or []:
+        idx = getattr(cp, "index", None)
+        if idx is None and isinstance(cp, dict):
+            idx = cp.get("index")
+        if idx is not None:
+            spec.add_reference_line(float(idx), axis="x", color="#888",
+                                    dash="dashed", label="")
+    return [spec]
+
+
+def _charts_from_arima(result, **kwargs) -> list:
+    """ARIMAResult / SARIMAResult → forecast (with CI band) + residuals line.
+
+    Matched by name ahead of the duck-typed regression fallback so the forecast
+    isn't mis-rendered as a regression diagnostic panel (the result also exposes
+    fitted + residuals). ForecastPoint carries step/predicted/ci_lower/ci_upper.
+    """
+    from ..charts.generic import line, multi_line
+    charts = []
+    forecast = getattr(result, "forecast", []) or []
+    if forecast:
+        steps = [getattr(p, "step", i + 1) for i, p in enumerate(forecast)]
+        pred = [float(getattr(p, "predicted", 0.0)) for p in forecast]
+        lo = [float(getattr(p, "ci_lower", 0.0)) for p in forecast]
+        hi = [float(getattr(p, "ci_upper", 0.0)) for p in forecast]
+        charts.append(multi_line(
+            steps, {"Forecast": pred, "Lower": lo, "Upper": hi},
+            title="Forecast", x_label="Step", y_label="Value",
+        ))
+    residuals = _as_list(getattr(result, "residuals", []))
+    if residuals:
+        charts.append(line(
+            list(range(len(residuals))), residuals,
+            title="Residuals", x_label="Index", y_label="Residual",
+        ))
+    return charts
+
+
+# --- forgestat power builder ---
+
+
+def _charts_from_power(result, power_curve=None, **kwargs) -> list:
+    """PowerResult → power-vs-sample-size curve.
+
+    The result is a single solved point, which is no chart on its own; the
+    handler sweeps the power calculation across a range of n and forwards the
+    swept curve via chart_ctx (power_curve={"n": [...], "power": [...]}). The
+    target-power and solved-n are drawn as reference lines.
+    """
+    if not power_curve:
+        return []
+    ns = _as_list(power_curve.get("n", []))
+    powers = _as_list(power_curve.get("power", []))
+    if not ns or not powers:
+        return []
+    from ..charts.generic import line
+    spec = line(ns, powers, title="Power Curve",
+                x_label="Sample size (n)", y_label="Power")
+    target = power_curve.get("target_power")
+    if target:
+        spec.add_reference_line(float(target), axis="y", color="#888",
+                                dash="dashed", label=f"target {float(target):.0%}")
+    solved = power_curve.get("solved_n")
+    if solved:
+        spec.add_reference_line(float(solved), axis="x", color="#888",
+                                dash="dotted", label=f"n = {int(solved)}")
+    return [spec]
