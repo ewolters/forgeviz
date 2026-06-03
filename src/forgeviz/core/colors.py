@@ -7,6 +7,16 @@ When SVEND migrates to ForgeViz, templates read from this via JS
 or the Python renderers apply these automatically.
 """
 
+from forgerender import (
+    ROLE_CENTERLINE,
+    ROLE_CONTROL_LIMIT,
+    ROLE_DATA,
+    ROLE_OUT_OF_CONTROL,
+    ROLE_RUN_RULE,
+    ROLE_SIGMA_ZONE,
+    ROLE_SPEC_LIMIT,
+)
+
 # =========================================================================
 # SVEND Platform Colors (match CSS variables in base_app.html)
 # =========================================================================
@@ -322,11 +332,11 @@ def rgba(hex_color: str, alpha: float) -> str:
 # run-rule violations amber. "data" pulls the theme's primary series color.
 
 ROLE_COLORS = {
-    "centerline": STATUS_GREEN,
-    "control_limit": STATUS_RED,
-    "out_of_control": STATUS_RED,
-    "spec_limit": STATUS_PURPLE,
-    "run_rule": STATUS_AMBER,
+    ROLE_CENTERLINE: STATUS_GREEN,
+    ROLE_CONTROL_LIMIT: STATUS_RED,
+    ROLE_OUT_OF_CONTROL: STATUS_RED,
+    ROLE_SPEC_LIMIT: STATUS_PURPLE,
+    ROLE_RUN_RULE: STATUS_AMBER,
 }
 
 
@@ -339,9 +349,9 @@ def role_color(role: str, theme: dict | str = "svend_dark") -> str:
     if not role:
         return ""
     t = theme if isinstance(theme, dict) else get_theme(theme)
-    if role == "data":
+    if role == ROLE_DATA:
         return t["colors"][0]
-    if role == "sigma_zone":
+    if role == ROLE_SIGMA_ZONE:
         return rgba(STATUS_GREEN, 0.07)
     return ROLE_COLORS.get(role, "")
 
