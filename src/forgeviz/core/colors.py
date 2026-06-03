@@ -312,6 +312,40 @@ def rgba(hex_color: str, alpha: float) -> str:
     return f"rgba({r},{g},{b},{alpha})"
 
 
+# =========================================================================
+# Semantic Element Roles (theme-neutral rendering)
+# =========================================================================
+#
+# Solvers emit chart elements with color="" plus a semantic role; the renderer
+# resolves the role to a concrete color here. SPC conventions: control limits
+# and out-of-control points are alarm red, spec limits purple, centerline green,
+# run-rule violations amber. "data" pulls the theme's primary series color.
+
+ROLE_COLORS = {
+    "centerline": STATUS_GREEN,
+    "control_limit": STATUS_RED,
+    "out_of_control": STATUS_RED,
+    "spec_limit": STATUS_PURPLE,
+    "run_rule": STATUS_AMBER,
+}
+
+
+def role_color(role: str, theme: dict | str = "svend_dark") -> str:
+    """Resolve a semantic element role to a concrete color for a theme.
+
+    Returns "" for an empty or unknown role so callers keep their existing
+    fallback (per-element color, then theme palette).
+    """
+    if not role:
+        return ""
+    t = theme if isinstance(theme, dict) else get_theme(theme)
+    if role == "data":
+        return t["colors"][0]
+    if role == "sigma_zone":
+        return rgba(STATUS_GREEN, 0.07)
+    return ROLE_COLORS.get(role, "")
+
+
 def css_variables() -> dict[str, str]:
     """Export as CSS custom properties for template injection.
 

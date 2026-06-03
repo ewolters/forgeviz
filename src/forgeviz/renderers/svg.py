@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from xml.sax.saxutils import escape
 
-from ..core.colors import get_theme
+from ..core.colors import get_theme, role_color
 from ..core.spec import ChartSpec, Trace
 
 
@@ -283,22 +283,24 @@ def to_svg(spec: ChartSpec, width: int | None = None, height: int | None = None)
         if zone.axis == "y":
             zy1 = sy(zone.high)
             zy2 = sy(zone.low)
-            parts.append(f'<rect x="{ml}" y="{zy1:.1f}" width="{pw}" height="{max(0, zy2 - zy1):.1f}" fill="{zone.color}"/>')
+            zcolor = zone.color or role_color(zone.role, theme) or theme["grid"]
+            parts.append(f'<rect x="{ml}" y="{zy1:.1f}" width="{pw}" height="{max(0, zy2 - zy1):.1f}" fill="{zcolor}"/>')
             if zone.label:
                 parts.append(f'<text x="{ml + pw - 3}" y="{zy1 + 12:.1f}" text-anchor="end" fill="{theme["text_secondary"]}" font-size="9" opacity="0.7">{escape(zone.label)}</text>')
 
     # Reference lines
     for ref in spec.reference_lines:
+        rcolor = ref.color or role_color(ref.role, theme) or theme["text_secondary"]
         if ref.axis == "y" or not ref.axis:
             ry = sy(ref.value)
             dash = "8,4" if ref.dash == "dashed" else "3,3" if ref.dash == "dotted" else ""
-            parts.append(f'<line x1="{ml}" y1="{ry:.1f}" x2="{ml + pw}" y2="{ry:.1f}" stroke="{ref.color}" stroke-width="{ref.width}" stroke-dasharray="{dash}"/>')
+            parts.append(f'<line x1="{ml}" y1="{ry:.1f}" x2="{ml + pw}" y2="{ry:.1f}" stroke="{rcolor}" stroke-width="{ref.width}" stroke-dasharray="{dash}"/>')
             if ref.label:
-                parts.append(f'<text x="{ml + pw + 3}" y="{ry + 4:.1f}" fill="{ref.color}" font-size="9">{escape(ref.label)}</text>')
+                parts.append(f'<text x="{ml + pw + 3}" y="{ry + 4:.1f}" fill="{rcolor}" font-size="9">{escape(ref.label)}</text>')
         elif ref.axis == "x":
             rx = sx(ref.value)
             dash = "8,4" if ref.dash == "dashed" else "3,3" if ref.dash == "dotted" else ""
-            parts.append(f'<line x1="{rx:.1f}" y1="{mt}" x2="{rx:.1f}" y2="{mt + ph}" stroke="{ref.color}" stroke-width="{ref.width}" stroke-dasharray="{dash}"/>')
+            parts.append(f'<line x1="{rx:.1f}" y1="{mt}" x2="{rx:.1f}" y2="{mt + ph}" stroke="{rcolor}" stroke-width="{ref.width}" stroke-dasharray="{dash}"/>')
 
     # Traces
     for ti, trace in enumerate(spec.traces):
@@ -310,7 +312,7 @@ def to_svg(spec: ChartSpec, width: int | None = None, height: int | None = None)
         if not hasattr(trace, "x") or not hasattr(trace, "y") or not trace.x or not trace.y:
             continue
 
-        base_color = trace.color or theme["colors"][ti % len(theme["colors"])]
+        base_color = trace.color or role_color(trace.role, theme) or theme["colors"][ti % len(theme["colors"])]
         n = min(len(trace.x), len(trace.y))
 
         def _color_at(i):
@@ -414,6 +416,7 @@ def to_svg(spec: ChartSpec, width: int | None = None, height: int | None = None)
 
     # Markers
     for marker in spec.markers:
+        mcolor = marker.color or role_color(marker.role, theme) or theme["text"]
         if marker.indices and spec.traces:
             first = spec.traces[0]
             if isinstance(first, Trace) and first.x and first.y:
@@ -421,9 +424,9 @@ def to_svg(spec: ChartSpec, width: int | None = None, height: int | None = None)
                     if idx < len(first.x) and idx < len(first.y):
                         xv = first.x[idx] if isinstance(first.x[idx], (int, float)) else (all_x_labels.index(str(first.x[idx])) if is_categorical_x and str(first.x[idx]) in all_x_labels else idx)
                         mx, my = sx(xv), sy(first.y[idx])
-                        parts.append(f'<circle cx="{mx:.1f}" cy="{my:.1f}" r="{marker.size / 2}" fill="none" stroke="{marker.color}" stroke-width="2"/>')
+                        parts.append(f'<circle cx="{mx:.1f}" cy="{my:.1f}" r="{marker.size / 2}" fill="none" stroke="{mcolor}" stroke-width="2"/>')
                         if marker.label:
-                            parts.append(f'<text x="{mx:.1f}" y="{my - marker.size / 2 - 3:.1f}" text-anchor="middle" fill="{marker.color}" font-size="9">{escape(marker.label)}</text>')
+                            parts.append(f'<text x="{mx:.1f}" y="{my - marker.size / 2 - 3:.1f}" text-anchor="middle" fill="{mcolor}" font-size="9">{escape(marker.label)}</text>')
 
     # Axes
     parts.append(f'<line x1="{ml}" y1="{mt}" x2="{ml}" y2="{mt + ph}" stroke="{theme["axis"]}" stroke-width="1"/>')
