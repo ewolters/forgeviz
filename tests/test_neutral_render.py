@@ -41,10 +41,10 @@ class TestRoleColor:
         from forgeviz.core.colors import get_theme
         assert role_color("data", "svend_dark") == role_color("data", get_theme("svend_dark"))
 
-    def test_every_forgerender_role_resolves(self):
+    def test_every_forgecore_role_resolves(self):
         # Guards against the producer/consumer vocabulary drifting: every role
         # the contract defines must map to a visible color here.
-        from forgerender import ROLES
+        from forgecore import ROLES
         for role in ROLES:
             assert role_color(role, "svend_dark"), f"role {role!r} resolved empty"
 

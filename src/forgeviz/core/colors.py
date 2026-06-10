@@ -7,7 +7,7 @@ When SVEND migrates to ForgeViz, templates read from this via JS
 or the Python renderers apply these automatically.
 """
 
-from forgerender import (
+from forgecore import (
     ROLE_CENTERLINE,
     ROLE_CONTROL_LIMIT,
     ROLE_DATA,

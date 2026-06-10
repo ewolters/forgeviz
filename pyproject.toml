@@ -12,7 +12,7 @@ requires-python = ">=3.10"
 authors = [{name = "Eric Wolters", email = "eric.wolters@svend.ai"}]
 
 # ZERO DEPENDENCIES. Pure Python stdlib.
-dependencies = ["forgerender"]
+dependencies = ["forgecore"]
 
 [project.optional-dependencies]
 png = [

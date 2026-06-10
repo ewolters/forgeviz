@@ -1,6 +1,6 @@
-"""ChartSpec — re-exported from the forgerender contract package.
+"""ChartSpec — re-exported from the forgecore contract package.
 
-The schema now lives in `forgerender` (zero-dep, shared by solvers and renderers).
+The schema now lives in `forgecore` (zero-dep, shared by solvers and renderers).
 forgeviz re-exports it here for backward compatibility and owns `render()` —
 the dispatcher that turns a ChartSpec into dict/json/plotly/svg output.
 """
@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from forgerender import (  # noqa: F401  (re-exported for back-compat)
+from forgecore import (  # noqa: F401  (re-exported for back-compat)
     Annotation,
     Axis,
     ChartSpec,
