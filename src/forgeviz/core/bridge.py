@@ -129,6 +129,18 @@ def charts_from_result(result: Any, **kwargs) -> list:
     if hasattr(result, "fitted") and hasattr(result, "residuals"):
         return _charts_from_regression(result, **kwargs)
 
+    # Contract fallback, tried LAST: a result the bridge doesn't know that
+    # speaks the forgecore Result protocol renders itself. Known builders keep
+    # priority above because they compose richer views (chart pairs,
+    # data-context charts) than a result can draw from its own fields.
+    to_render = getattr(result, "to_render", None)
+    if callable(to_render):
+        try:
+            return [to_render()]
+        except Exception:
+            logger.warning("to_render() failed for %s", type_name, exc_info=True)
+            return []
+
     return []
 
 
