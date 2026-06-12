@@ -24,7 +24,6 @@ def charts_from_result(result: Any, **kwargs) -> list:
     Returns an empty list if the type is not recognized (no error).
 
     Supported types:
-    - forgespc.models.ControlChartResult → control chart(s)
     - forgespc.models.ProcessCapability → capability histogram
     - forgespc.bayesian.BayesianCapabilityResult → bayesian capability chart
     - forgestat group tests (TTest/Anova/RankTest/PostHoc/...) → box plot or
@@ -52,9 +51,6 @@ def charts_from_result(result: Any, **kwargs) -> list:
     module = type(result).__module__ or ""
 
     # --- forgespc types ---
-
-    if type_name == "ControlChartResult":
-        return _charts_from_control_chart(result, **kwargs)
 
     if type_name == "ProcessCapability":
         return _charts_from_capability(result, **kwargs)
@@ -127,15 +123,17 @@ def charts_from_result(result: Any, **kwargs) -> list:
         return _charts_from_regression(result, **kwargs)
 
     # Contract fallback, tried LAST: a result the bridge doesn't know that
-    # speaks the forgecore Result protocol renders itself. Known builders keep
-    # priority above because they compose richer views (chart pairs,
-    # data-context charts) than a result can draw from its own fields.
-    to_render = getattr(result, "to_render", None)
-    if callable(to_render):
+    # speaks the forgecore Result protocol renders its complete portrait —
+    # views() when present (multi-chart results), to_render() otherwise.
+    # Remaining builders keep priority above because they compose data-context
+    # charts a result cannot draw from its own fields.
+    portrait = getattr(result, "views", None) or getattr(result, "to_render", None)
+    if callable(portrait):
         try:
-            return [to_render()]
+            specs = portrait()
+            return list(specs) if isinstance(specs, list) else [specs]
         except Exception:
-            logger.warning("to_render() failed for %s", type_name, exc_info=True)
+            logger.warning("contract render failed for %s", type_name, exc_info=True)
             return []
 
     return []
@@ -209,12 +207,6 @@ def _charts_from_correlation(data_dict=None, **kwargs) -> list:
         from ..charts.statistical import scatter_matrix
         return scatter_matrix({c: _as_list(data_dict[c]) for c in cols})
     return []
-
-
-def _charts_from_control_chart(result, **kwargs) -> list:
-    """ControlChartResult → 1 or 2 ChartSpecs (primary + secondary)."""
-    from ..charts.control import from_spc_result_pair
-    return from_spc_result_pair(result, title=kwargs.get("title", ""))
 
 
 def _charts_from_capability(result, **kwargs) -> list:

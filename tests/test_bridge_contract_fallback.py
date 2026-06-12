@@ -1,7 +1,7 @@
-"""Contract fallback: charts_from_result tries result.to_render() for types
-the bridge doesn't recognize. The fallback is LAST — known builders keep
-priority because they compose richer views (chart pairs, data-context charts)
-than a result can self-render from its own fields."""
+"""Contract fallback: charts_from_result asks unrecognized types for their
+complete portrait — views() when present, to_render() otherwise. The fallback
+is LAST — remaining builders keep priority because they compose data-context
+charts a result cannot draw from its own fields."""
 
 from forgecore import ChartSpec
 
@@ -44,12 +44,32 @@ def test_broken_to_render_returns_empty_not_raise():
     assert charts_from_result(_BrokenRenderResult()) == []
 
 
-def test_known_builder_keeps_priority_over_to_render():
-    # ControlChartResult HAS to_render() (single chart) but the bridge's
-    # pair builder (primary + secondary, e.g. I + MR) must keep winning.
+class _PairViewsResult:
+    """Unknown to the bridge; its complete portrait is two charts."""
+
+    summary = "pair"
+
+    def to_render(self):
+        return ChartSpec(title="Primary", chart_type="line")
+
+    def views(self):
+        return [self.to_render(), ChartSpec(title="Secondary", chart_type="line")]
+
+
+def test_multi_view_result_renders_all_views():
+    charts = charts_from_result(_PairViewsResult())
+    assert [c.title for c in charts] == ["Primary", "Secondary"]
+
+
+def test_control_chart_pair_self_renders_via_views():
+    # The I-MR pair now comes from ControlChartResult.views() (the result
+    # carries its secondary chart) — no bridge builder, theme-neutral output.
     from forgespc.charts import individuals_moving_range_chart
 
     result = individuals_moving_range_chart([5.1, 5.0, 5.2, 4.9, 5.1, 5.3, 5.0, 5.1])
-    assert callable(getattr(result, "to_render", None))  # contract present
     charts = charts_from_result(result)
-    assert len(charts) == 2  # pair, not the single self-rendered chart
+
+    assert len(charts) == 2  # the pair survives the builder's deletion
+    assert charts[1].subtitle == "MR"
+    # neutral colors prove the contract path, not the themed legacy builder
+    assert charts[0].to_dict()["traces"][0]["color"] == ""
