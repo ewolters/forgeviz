@@ -11,24 +11,16 @@ from forgeviz.core.spec import ChartSpec
 
 
 class CUSUMResult:
-    def __init__(self):
-        self.cusum_pos = [0.0, 1.2, 2.4, 3.6, 4.8]
-        self.cusum_neg = [0.0, 0.5, 0.0, 0.3, 0.0]
-        self.signals_up = [4]
-        self.signals_down = []
-        self.h = 5.0
-        self.sigma = 1.0
-        self.n = 5
+    """Advanced-SPC results self-render via the contract (to_render); the
+    bridge has no builder for them anymore."""
+
+    def to_render(self):
+        return ChartSpec(chart_type="control_chart", subtitle="CUSUM")
 
 
 class EWMAResult:
-    def __init__(self):
-        self.ewma_values = [10.0, 10.2, 9.8, 10.1, 10.3]
-        self.target = 10.0
-        self.ucl_steady = 11.0
-        self.lcl_steady = 9.0
-        self.out_of_control_indices = []
-        self.n = 5
+    def to_render(self):
+        return ChartSpec(chart_type="control_chart", subtitle="EWMA")
 
 
 class MLResult:
@@ -40,15 +32,15 @@ class MLResult:
 
 
 class TestAdvancedSPCBridge:
-    def test_cusum_produces_chart(self):
+    def test_cusum_self_renders_via_contract_fallback(self):
         charts = charts_from_result(CUSUMResult())
         assert len(charts) == 1
-        assert isinstance(charts[0], ChartSpec)
+        assert charts[0].subtitle == "CUSUM"  # the result's own spec, untouched
 
-    def test_ewma_produces_chart(self):
+    def test_ewma_self_renders_via_contract_fallback(self):
         charts = charts_from_result(EWMAResult())
         assert len(charts) == 1
-        assert isinstance(charts[0], ChartSpec)
+        assert charts[0].subtitle == "EWMA"
 
 
 class TestMLBridge:
