@@ -4,7 +4,6 @@ The bridge dispatches by result type *name* (no import coupling), so these
 tests use lightweight fakes named to match — keeping forgeviz dependency-free.
 """
 
-from dataclasses import dataclass
 
 from forgeviz.core.bridge import charts_from_result
 from forgeviz.core.spec import ChartSpec
@@ -152,24 +151,21 @@ class TestRegressionBridge:
         assert charts_from_result(RegressionResult()) == []
 
 
-@dataclass
 class ProcessCapability:
-    usl: float = 10.0
-    lsl: float = 2.0
-    target: float = 6.0
-    cp: float = 1.2
-    cpk: float = 1.1
+    """Capability results self-render via the contract (views carries the
+    histogram + probability pair); the bridge has no builder for them anymore."""
+
+    def views(self):
+        return [
+            ChartSpec(chart_type="capability_histogram"),
+            ChartSpec(chart_type="probability_plot"),
+        ]
 
 
 class TestCapabilityBridge:
-    def test_capability_produces_histogram_and_probability_plot(self):
-        data = [4.8, 5.1, 5.0, 4.9, 5.2, 5.05, 4.95, 5.1, 4.85, 5.0, 5.15, 4.9]
-        charts = charts_from_result(ProcessCapability(), data=data)
-        assert len(charts) == 2
-        assert all(isinstance(c, ChartSpec) for c in charts)
-        types = {c.chart_type for c in charts}
-        assert "capability_histogram" in types
-        assert "probability_plot" in types
+    def test_capability_self_renders_its_pair_via_contract_fallback(self):
+        charts = charts_from_result(ProcessCapability())
+        assert [c.chart_type for c in charts] == ["capability_histogram", "probability_plot"]
 
 
 class TTestResult:

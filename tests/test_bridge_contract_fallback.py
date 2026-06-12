@@ -61,6 +61,20 @@ def test_multi_view_result_renders_all_views():
     assert [c.title for c in charts] == ["Primary", "Secondary"]
 
 
+def test_capability_self_renders_histogram_and_probability_plot():
+    # §5b: the result carries its sample — no data= kwarg, no bridge builder.
+    from forgespc.capability import calculate_capability
+
+    cap = calculate_capability(
+        [4.8, 5.1, 5.0, 4.9, 5.2, 5.05, 4.95, 5.1, 4.85, 5.0, 5.15, 4.9],
+        usl=5.5, lsl=4.5,
+    )
+    charts = charts_from_result(cap)
+
+    assert [c.chart_type for c in charts] == ["capability_histogram", "probability_plot"]
+    assert all(t["color"] == "" for t in charts[0].to_dict()["traces"])  # neutral
+
+
 def test_control_chart_pair_self_renders_via_views():
     # The I-MR pair now comes from ControlChartResult.views() (the result
     # carries its secondary chart) — no bridge builder, theme-neutral output.

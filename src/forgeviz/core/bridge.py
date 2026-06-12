@@ -52,9 +52,6 @@ def charts_from_result(result: Any, **kwargs) -> list:
 
     # --- forgespc types ---
 
-    if type_name == "ProcessCapability":
-        return _charts_from_capability(result, **kwargs)
-
     if type_name == "BayesianCapabilityResult":
         return _charts_from_bayesian_capability(result, **kwargs)
 
@@ -207,34 +204,6 @@ def _charts_from_correlation(data_dict=None, **kwargs) -> list:
         from ..charts.statistical import scatter_matrix
         return scatter_matrix({c: _as_list(data_dict[c]) for c in cols})
     return []
-
-
-def _charts_from_capability(result, **kwargs) -> list:
-    """ProcessCapability → capability histogram + normal probability plot.
-
-    Normality is the assumption behind Cp/Cpk, so the probability plot ships
-    alongside the histogram whenever the raw sample is available via chart_ctx.
-    """
-    from dataclasses import asdict
-
-    from ..charts.capability import capability_histogram
-    from ..charts.distribution import probability_plot
-
-    d = asdict(result) if hasattr(result, "__dataclass_fields__") else result
-    if not isinstance(d, dict):
-        return []
-    data = kwargs.get("data", [])
-    if data is None or (hasattr(data, "__len__") and len(data) == 0):
-        return []
-    data = list(data)
-    return [
-        capability_histogram(
-            data=data,
-            usl=d.get("usl"), lsl=d.get("lsl"), target=d.get("target"),
-            cp=d.get("cp"), cpk=d.get("cpk"),
-        ),
-        probability_plot(data, distribution="normal", title="Normal Probability Plot"),
-    ]
 
 
 def _charts_from_bayesian_capability(result, **kwargs) -> list:
