@@ -75,13 +75,10 @@ def charts_from_result(result: Any, **kwargs) -> list:
         return _charts_from_ml(result, **kwargs)
 
     # --- forgestat timeseries types ---
-    # The field-only family (ACF/CCF/decomposition/ARIMA/Granger) self-renders
-    # via the contract fallback below. ChangepointResult stays — it needs the
-    # raw series forwarded via chart_ctx (data=), which a result can't draw
-    # from its own fields.
-
-    if type_name == "ChangepointResult":
-        return _charts_from_changepoint(result, **kwargs)
+    # The whole timeseries family (ACF/CCF/decomposition/ARIMA/Granger/
+    # changepoint) self-renders via the contract fallback below — no dispatch
+    # arms, no bridge builders. ChangepointResult now carries its own series
+    # (§5b), so it no longer needs a data= kwarg.
 
     # --- forgestat power types ---
 
@@ -366,32 +363,6 @@ def _charts_from_gage_rr(result, measurements=None, parts=None, operators=None, 
         charts.append(gage_rr_by_operator(list(by_op.keys()), by_op))
 
     return charts
-
-
-# --- forgestat timeseries builders ---
-# Only ChangepointResult keeps a builder: it needs the raw series forwarded via
-# chart_ctx (data=). ACF/CCF/decomposition/ARIMA/Granger self-render from their
-# own fields via the contract fallback.
-
-
-def _charts_from_changepoint(result, data=None, **kwargs) -> list:
-    """ChangepointResult → series line with a vertical marker at each
-    changepoint. The raw series isn't on the result, so the handler forwards it
-    via chart_ctx (data=...); without it there's nothing to draw."""
-    series = _as_list(data) if data is not None else []
-    if not series:
-        return []
-    from ..charts.generic import line
-    spec = line(list(range(len(series))), series, title="Changepoint Detection",
-                x_label="Index", y_label="Value")
-    for cp in getattr(result, "changepoints", []) or []:
-        idx = getattr(cp, "index", None)
-        if idx is None and isinstance(cp, dict):
-            idx = cp.get("index")
-        if idx is not None:
-            spec.add_reference_line(float(idx), axis="x", color="#888",
-                                    dash="dashed", label="")
-    return [spec]
 
 
 # --- forgestat power builder ---

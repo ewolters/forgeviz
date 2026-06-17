@@ -330,24 +330,26 @@ class _CP:
 
 
 class ChangepointResult:
-    def __init__(self):
-        self.method = "pelt"
-        self.changepoints = [_CP(3), _CP(7)]
-        self.segment_means = [10.0, 15.0, 12.0]
-        self.segment_boundaries = [0, 3, 7]
-        self.n_segments = 3
+    """Changepoint self-renders via the contract — it now carries its own
+    series (§5b), so the bridge forwards no data= and has no builder."""
+
+    series = [10, 10, 10, 15, 15, 15, 15, 12, 12, 12]
+    changepoints = [_CP(3), _CP(7)]
+
+    def to_render(self):
+        spec = ChartSpec(chart_type="line", title="Changepoint Detection")
+        spec.add_trace(list(range(len(self.series))), self.series, name="series")
+        for cp in self.changepoints:
+            spec.add_reference_line(cp.index, axis="x", dash="dashed")
+        return spec
 
 
 class TestChangepointBridge:
-    def test_with_data_produces_line_with_markers(self):
-        data = [10, 10, 10, 15, 15, 15, 15, 12, 12, 12]
-        charts = charts_from_result(ChangepointResult(), data=data)
+    def test_self_renders_line_with_markers(self):
+        charts = charts_from_result(ChangepointResult())
         assert len(charts) == 1
         assert charts[0].chart_type == "line"
         assert len(charts[0].reference_lines) == 2
-
-    def test_without_data_yields_no_chart(self):
-        assert charts_from_result(ChangepointResult()) == []
 
 
 class ARIMAResult:
