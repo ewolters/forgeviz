@@ -75,24 +75,13 @@ def charts_from_result(result: Any, **kwargs) -> list:
         return _charts_from_ml(result, **kwargs)
 
     # --- forgestat timeseries types ---
-    # ARIMAResult/SARIMAResult also expose fitted+residuals, so they MUST be
-    # matched here by name, ahead of the duck-typed regression fallback below,
-    # or a forecast would be mis-rendered as a regression 4-in-1 panel.
-
-    if type_name == "DecompositionResult":
-        return _charts_from_decomposition(result, **kwargs)
-
-    if type_name == "CCFResult":
-        return _charts_from_ccf(result, **kwargs)
-
-    if type_name == "GrangerResult":
-        return _charts_from_granger(result, **kwargs)
+    # The field-only family (ACF/CCF/decomposition/ARIMA/Granger) self-renders
+    # via the contract fallback below. ChangepointResult stays — it needs the
+    # raw series forwarded via chart_ctx (data=), which a result can't draw
+    # from its own fields.
 
     if type_name == "ChangepointResult":
         return _charts_from_changepoint(result, **kwargs)
-
-    if type_name in ("ARIMAResult", "SARIMAResult"):
-        return _charts_from_arima(result, **kwargs)
 
     # --- forgestat power types ---
 
@@ -112,8 +101,12 @@ def charts_from_result(result: Any, **kwargs) -> list:
         return _charts_from_correlation(**kwargs)
 
     # Regression-family results that expose residual diagnostics (fitted +
-    # residuals arrays) get the standard 4-in-1 panel, regardless of exact type.
-    if hasattr(result, "fitted") and hasattr(result, "residuals"):
+    # residuals arrays) get the standard 4-in-1 panel — UNLESS they conform to
+    # the engine contract, in which case they self-render below. ARIMAResult
+    # carries fitted+residuals but its portrait is a forecast, not a diagnostic
+    # panel; its contract views() win over this duck-typed heuristic.
+    if (hasattr(result, "fitted") and hasattr(result, "residuals")
+            and not callable(getattr(result, "to_render", None))):
         return _charts_from_regression(result, **kwargs)
 
     # Contract fallback, tried LAST: a result the bridge doesn't know that
@@ -376,63 +369,9 @@ def _charts_from_gage_rr(result, measurements=None, parts=None, operators=None, 
 
 
 # --- forgestat timeseries builders ---
-
-
-def _charts_from_decomposition(result, **kwargs) -> list:
-    """DecompositionResult → observed / trend / seasonal / residual line panel.
-
-    Each component the result actually carries becomes its own line chart; the
-    multi-chart list reads top-to-bottom like a classical STL panel.
-    """
-    from ..charts.generic import line
-    panels = [
-        ("Observed", getattr(result, "observed", [])),
-        ("Trend", getattr(result, "trend", [])),
-        ("Seasonal", getattr(result, "seasonal", [])),
-        ("Residual", getattr(result, "residual", [])),
-    ]
-    charts = []
-    for title, series in panels:
-        vals = _as_list(series)
-        if vals:
-            charts.append(line(
-                list(range(len(vals))), vals,
-                title=title, x_label="Period", y_label=title,
-            ))
-    return charts
-
-
-def _charts_from_ccf(result, **kwargs) -> list:
-    """CCFResult → cross-correlation bar over lags with ±confidence band."""
-    from ..charts.generic import bar
-    ccf = _as_list(getattr(result, "ccf_values", []))
-    if not ccf:
-        return []
-    lags = getattr(result, "lags", [])
-    cats = [str(l) for l in lags] if lags else [str(i) for i in range(len(ccf))]
-    spec = bar(cats, ccf, title="Cross-Correlation (CCF)",
-               x_label="Lag", y_label="Correlation")
-    bound = getattr(result, "confidence_bound", 0.0) or 0.0
-    if bound:
-        spec.add_reference_line(bound, axis="y", color="#888", dash="dashed",
-                                label="95% bound")
-        spec.add_reference_line(-bound, axis="y", color="#888", dash="dashed")
-    return [spec]
-
-
-def _charts_from_granger(result, alpha=0.05, **kwargs) -> list:
-    """GrangerResult → p-value-by-lag bar with the α significance threshold."""
-    from ..charts.generic import bar
-    rows = getattr(result, "results_by_lag", []) or []
-    if not rows:
-        return []
-    lags = [str(r.get("lag", i + 1)) for i, r in enumerate(rows)]
-    pvals = [float(r.get("p_value", 1.0)) for r in rows]
-    spec = bar(lags, pvals, title="Granger Causality — p-value by lag",
-               x_label="Lag", y_label="p-value")
-    spec.add_reference_line(float(alpha), axis="y", color="#888", dash="dashed",
-                            label=f"alpha = {alpha}")
-    return [spec]
+# Only ChangepointResult keeps a builder: it needs the raw series forwarded via
+# chart_ctx (data=). ACF/CCF/decomposition/ARIMA/Granger self-render from their
+# own fields via the contract fallback.
 
 
 def _charts_from_changepoint(result, data=None, **kwargs) -> list:
@@ -453,34 +392,6 @@ def _charts_from_changepoint(result, data=None, **kwargs) -> list:
             spec.add_reference_line(float(idx), axis="x", color="#888",
                                     dash="dashed", label="")
     return [spec]
-
-
-def _charts_from_arima(result, **kwargs) -> list:
-    """ARIMAResult / SARIMAResult → forecast (with CI band) + residuals line.
-
-    Matched by name ahead of the duck-typed regression fallback so the forecast
-    isn't mis-rendered as a regression diagnostic panel (the result also exposes
-    fitted + residuals). ForecastPoint carries step/predicted/ci_lower/ci_upper.
-    """
-    from ..charts.generic import line, multi_line
-    charts = []
-    forecast = getattr(result, "forecast", []) or []
-    if forecast:
-        steps = [getattr(p, "step", i + 1) for i, p in enumerate(forecast)]
-        pred = [float(getattr(p, "predicted", 0.0)) for p in forecast]
-        lo = [float(getattr(p, "ci_lower", 0.0)) for p in forecast]
-        hi = [float(getattr(p, "ci_upper", 0.0)) for p in forecast]
-        charts.append(multi_line(
-            steps, {"Forecast": pred, "Lower": lo, "Upper": hi},
-            title="Forecast", x_label="Step", y_label="Value",
-        ))
-    residuals = _as_list(getattr(result, "residuals", []))
-    if residuals:
-        charts.append(line(
-            list(range(len(residuals))), residuals,
-            title="Residuals", x_label="Index", y_label="Residual",
-        ))
-    return charts
 
 
 # --- forgestat power builder ---

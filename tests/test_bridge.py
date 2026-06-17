@@ -248,13 +248,12 @@ class TestUnknownResult:
 
 
 class DecompositionResult:
-    def __init__(self):
-        self.observed = [10.0, 12.0, 11.0, 13.0, 12.0, 14.0]
-        self.trend = [10.5, 11.0, 11.5, 12.0, 12.5, 13.0]
-        self.seasonal = [-0.5, 0.5, -0.5, 0.5, -0.5, 0.5]
-        self.residual = [0.0, 0.5, 0.0, 0.5, 0.0, 0.5]
-        self.model = "additive"
-        self.period = 2
+    """Decomposition self-renders via the contract (views carries the
+    observed/trend/seasonal/residual panel); the bridge has no builder."""
+
+    def views(self):
+        return [ChartSpec(chart_type="line", title=t)
+                for t in ("Observed", "Trend", "Seasonal", "Residual")]
 
 
 class TestDecompositionBridge:
@@ -262,11 +261,6 @@ class TestDecompositionBridge:
         charts = charts_from_result(DecompositionResult())
         assert len(charts) == 4
         assert all(c.chart_type == "line" for c in charts)
-
-    def test_empty_components_yield_no_chart(self):
-        r = DecompositionResult()
-        r.observed = r.trend = r.seasonal = r.residual = []
-        assert charts_from_result(r) == []
 
 
 class ACFResult:
@@ -293,11 +287,13 @@ class TestACFBridge:
 
 
 class CCFResult:
-    def __init__(self):
-        self.lags = [-2, -1, 0, 1, 2]
-        self.ccf_values = [0.1, 0.3, 0.6, 0.2, -0.1]
-        self.confidence_bound = 0.4
-        self.peak_lag = 0
+    """CCF self-renders via the contract — cross-correlation bar + bands."""
+
+    def to_render(self):
+        spec = ChartSpec(chart_type="bar", title="Cross-Correlation (CCF)")
+        spec.add_reference_line(0.4, axis="y", dash="dashed")
+        spec.add_reference_line(-0.4, axis="y", dash="dashed")
+        return spec
 
 
 class TestCCFBridge:
@@ -308,14 +304,13 @@ class TestCCFBridge:
 
 
 class GrangerResult:
-    def __init__(self):
-        self.results_by_lag = [
-            {"lag": 1, "f_stat": 5.0, "p_value": 0.02},
-            {"lag": 2, "f_stat": 3.0, "p_value": 0.08},
-        ]
-        self.best_lag = 1
-        self.best_p_value = 0.02
-        self.x_causes_y = True
+    """Granger self-renders via the contract — p-value bar + alpha threshold
+    (alpha now rides the result, not a bridge kwarg)."""
+
+    def to_render(self):
+        spec = ChartSpec(chart_type="bar", title="Granger Causality — p-value by lag")
+        spec.add_reference_line(0.05, axis="y", dash="dashed")
+        return spec
 
 
 class TestGrangerBridge:
@@ -325,7 +320,7 @@ class TestGrangerBridge:
         assert charts[0].chart_type == "bar"
 
     def test_alpha_threshold_drawn(self):
-        charts = charts_from_result(GrangerResult(), alpha=0.05)
+        charts = charts_from_result(GrangerResult())
         assert len(charts[0].reference_lines) == 1
 
 
@@ -355,21 +350,23 @@ class TestChangepointBridge:
         assert charts_from_result(ChangepointResult()) == []
 
 
-class _FP:
-    def __init__(self, step, predicted, ci_lower, ci_upper):
-        self.step = step
-        self.predicted = predicted
-        self.ci_lower = ci_lower
-        self.ci_upper = ci_upper
-
-
 class ARIMAResult:
-    def __init__(self):
-        self.fitted = [10.0, 10.5, 11.0, 11.2, 11.5]
-        self.residuals = [0.1, -0.2, 0.0, 0.3, -0.1]
-        self.forecast = [_FP(1, 11.8, 11.0, 12.6), _FP(2, 12.0, 11.0, 13.0),
-                         _FP(3, 12.3, 11.1, 13.5)]
-        self.ljung_box_p = 0.4
+    """ARIMA self-renders via the contract — forecast (3-trace band) +
+    residuals. It still carries fitted+residuals, so the bridge's regression
+    duck-type fallback must yield to the contract or it'd render a 4-in-1."""
+
+    fitted = [10.0, 10.5, 11.0, 11.2, 11.5]
+    residuals = [0.1, -0.2, 0.0, 0.3, -0.1]
+
+    def to_render(self):
+        spec = ChartSpec(chart_type="line", title="Forecast")
+        spec.add_trace([1, 2, 3], [11.8, 12.0, 12.3], name="Forecast")
+        spec.add_trace([1, 2, 3], [11.0, 11.0, 11.1], name="Lower")
+        spec.add_trace([1, 2, 3], [12.6, 13.0, 13.5], name="Upper")
+        return spec
+
+    def views(self):
+        return [self.to_render(), ChartSpec(chart_type="line", title="Residuals")]
 
 
 class TestARIMABridge:
@@ -384,8 +381,8 @@ class TestARIMABridge:
         assert len(charts[0].traces) == 3
 
     def test_arima_not_misrouted_to_regression_panel(self):
-        # ARIMAResult exposes fitted+residuals; must match by name, NOT the
-        # duck-typed regression fallback (which would yield a 4-in-1 panel).
+        # ARIMAResult exposes fitted+residuals; the regression duck-type
+        # fallback must YIELD to the contract (views), not render a 4-in-1.
         charts = charts_from_result(ARIMAResult())
         assert len(charts) == 2  # forecast + residuals, not 4
 
