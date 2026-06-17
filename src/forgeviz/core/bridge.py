@@ -82,9 +82,6 @@ def charts_from_result(result: Any, **kwargs) -> list:
     if type_name == "DecompositionResult":
         return _charts_from_decomposition(result, **kwargs)
 
-    if type_name == "ACFResult":
-        return _charts_from_acf(result, **kwargs)
-
     if type_name == "CCFResult":
         return _charts_from_ccf(result, **kwargs)
 
@@ -402,34 +399,6 @@ def _charts_from_decomposition(result, **kwargs) -> list:
                 list(range(len(vals))), vals,
                 title=title, x_label="Period", y_label=title,
             ))
-    return charts
-
-
-def _correlogram(values, bound, title):
-    """A correlogram bar with ±confidence-bound reference lines."""
-    from ..charts.generic import bar
-    vals = _as_list(values)
-    spec = bar(
-        [str(i) for i in range(len(vals))], vals,
-        title=title, x_label="Lag", y_label="Correlation",
-    )
-    if bound:
-        spec.add_reference_line(bound, axis="y", color="#888", dash="dashed",
-                                label="95% bound")
-        spec.add_reference_line(-bound, axis="y", color="#888", dash="dashed")
-    return spec
-
-
-def _charts_from_acf(result, **kwargs) -> list:
-    """ACFResult → ACF correlogram + PACF correlogram, each banded."""
-    bound = getattr(result, "confidence_bound", 0.0) or 0.0
-    charts = []
-    if _as_list(getattr(result, "acf_values", [])):
-        charts.append(_correlogram(result.acf_values, bound,
-                                   "Autocorrelation (ACF)"))
-    if _as_list(getattr(result, "pacf_values", [])):
-        charts.append(_correlogram(result.pacf_values, bound,
-                                   "Partial Autocorrelation (PACF)"))
     return charts
 
 

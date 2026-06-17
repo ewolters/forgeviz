@@ -270,10 +270,15 @@ class TestDecompositionBridge:
 
 
 class ACFResult:
-    def __init__(self):
-        self.acf_values = [1.0, 0.6, 0.3, 0.1]
-        self.pacf_values = [1.0, 0.5, 0.1, -0.1]
-        self.confidence_bound = 0.35
+    """ACF results self-render via the contract (views carries the ACF + PACF
+    correlogram pair); the bridge has no builder for them anymore."""
+
+    def views(self):
+        acf = ChartSpec(chart_type="bar", title="Autocorrelation (ACF)")
+        acf.add_reference_line(0.35, axis="y", dash="dashed")
+        acf.add_reference_line(-0.35, axis="y", dash="dashed")
+        pacf = ChartSpec(chart_type="bar", title="Partial Autocorrelation (PACF)")
+        return [acf, pacf]
 
 
 class TestACFBridge:
