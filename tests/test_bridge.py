@@ -291,37 +291,3 @@ class TestARIMABridge:
         # fallback must YIELD to the contract (views), not render a 4-in-1.
         charts = charts_from_result(ARIMAResult())
         assert len(charts) == 2  # forecast + residuals, not 4
-
-
-# ---------------------------------------------------------------------------
-# Power family. PowerResult is a single solved point; the handler sweeps the
-# calculation across sample sizes and forwards the curve via chart_ctx.
-# ---------------------------------------------------------------------------
-
-
-class PowerResult:
-    def __init__(self):
-        self.test = "z-test"
-        self.power = 0.8
-        self.sample_size = 32
-        self.alpha = 0.05
-        self.effect_size = 0.5
-
-
-class TestPowerBridge:
-    def test_with_curve_produces_line(self):
-        curve = {"n": [10, 20, 30, 40, 50],
-                 "power": [0.4, 0.6, 0.78, 0.88, 0.94],
-                 "solved_n": 32, "target_power": 0.8}
-        charts = charts_from_result(PowerResult(), power_curve=curve)
-        assert len(charts) == 1
-        assert charts[0].chart_type == "line"
-
-    def test_curve_draws_target_and_solved_markers(self):
-        curve = {"n": [10, 20, 30], "power": [0.4, 0.6, 0.78],
-                 "solved_n": 30, "target_power": 0.8}
-        charts = charts_from_result(PowerResult(), power_curve=curve)
-        assert len(charts[0].reference_lines) == 2
-
-    def test_without_curve_yields_no_chart(self):
-        assert charts_from_result(PowerResult()) == []

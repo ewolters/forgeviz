@@ -49,10 +49,6 @@ def charts_from_result(result: Any, **kwargs) -> list:
         return out
 
     type_name = type(result).__name__
-    module = type(result).__module__ or ""
-
-    # --- forgespc types ---
-
 
     # forgestat reliability (WeibullFit/KaplanMeierResult), bayesian
     # (BayesianTestResult posterior density), and forgeml MLResult all
@@ -65,10 +61,8 @@ def charts_from_result(result: Any, **kwargs) -> list:
     # arms, no bridge builders. ChangepointResult now carries its own series
     # (§5b), so it no longer needs a data= kwarg.
 
-    # --- forgestat power types ---
-
-    if type_name == "PowerResult":
-        return _charts_from_power(result, **kwargs)
+    # forgestat power: PowerResult sweeps its own power-vs-n curve onto a
+    # power_curve field (§5b) and self-renders via the contract fallback below.
 
     # Contract fallback, tried LAST: a result the bridge doesn't know that
     # speaks the forgecore Result protocol renders its complete portrait —
@@ -85,42 +79,3 @@ def charts_from_result(result: Any, **kwargs) -> list:
             return []
 
     return []
-
-
-def _as_list(values) -> list:
-    """Coerce a numpy array / sequence to a plain list of floats."""
-    try:
-        return [float(v) for v in values]
-    except (TypeError, ValueError):
-        return list(values)
-
-
-# --- forgestat power builder ---
-
-
-def _charts_from_power(result, power_curve=None, **kwargs) -> list:
-    """PowerResult → power-vs-sample-size curve.
-
-    The result is a single solved point, which is no chart on its own; the
-    handler sweeps the power calculation across a range of n and forwards the
-    swept curve via chart_ctx (power_curve={"n": [...], "power": [...]}). The
-    target-power and solved-n are drawn as reference lines.
-    """
-    if not power_curve:
-        return []
-    ns = _as_list(power_curve.get("n", []))
-    powers = _as_list(power_curve.get("power", []))
-    if not ns or not powers:
-        return []
-    from ..charts.generic import line
-    spec = line(ns, powers, title="Power Curve",
-                x_label="Sample size (n)", y_label="Power")
-    target = power_curve.get("target_power")
-    if target:
-        spec.add_reference_line(float(target), axis="y", color="#888",
-                                dash="dashed", label=f"target {float(target):.0%}")
-    solved = power_curve.get("solved_n")
-    if solved:
-        spec.add_reference_line(float(solved), axis="x", color="#888",
-                                dash="dotted", label=f"n = {int(solved)}")
-    return [spec]
