@@ -25,7 +25,6 @@ def charts_from_result(result: Any, **kwargs) -> list:
 
     Supported types:
     - forgespc.models.ProcessCapability → capability histogram
-    - forgespc.bayesian.BayesianCapabilityResult → bayesian capability chart
     - dict with 'chart_type' key → already a spec, pass through
     - any forgecore Result protocol conformer → its own views()/to_render()
 
@@ -53,9 +52,6 @@ def charts_from_result(result: Any, **kwargs) -> list:
     module = type(result).__module__ or ""
 
     # --- forgespc types ---
-
-    if type_name == "BayesianCapabilityResult":
-        return _charts_from_bayesian_capability(result, **kwargs)
 
 
     # forgestat reliability (WeibullFit/KaplanMeierResult), bayesian
@@ -97,16 +93,6 @@ def _as_list(values) -> list:
         return [float(v) for v in values]
     except (TypeError, ValueError):
         return list(values)
-
-
-def _charts_from_bayesian_capability(result, **kwargs) -> list:
-    """BayesianCapabilityResult → bayesian capability chart."""
-    try:
-        from ..charts.bayesian import bayesian_capability as bc_chart
-        return [bc_chart(result)]
-    except Exception:
-        logger.debug("Bayesian capability chart failed", exc_info=True)
-        return []
 
 
 # --- forgestat power builder ---
