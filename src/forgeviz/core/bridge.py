@@ -57,8 +57,6 @@ def charts_from_result(result: Any, **kwargs) -> list:
     if type_name == "BayesianCapabilityResult":
         return _charts_from_bayesian_capability(result, **kwargs)
 
-    if type_name == "GageRRResult":
-        return _charts_from_gage_rr(result, **kwargs)
 
     # forgestat reliability (WeibullFit/KaplanMeierResult), bayesian
     # (BayesianTestResult posterior density), and forgeml MLResult all
@@ -109,35 +107,6 @@ def _charts_from_bayesian_capability(result, **kwargs) -> list:
     except Exception:
         logger.debug("Bayesian capability chart failed", exc_info=True)
         return []
-
-
-def _charts_from_gage_rr(result, measurements=None, parts=None, operators=None, **kwargs) -> list:
-    """GageRRResult → variance-component bar, plus by-part and by-operator
-    spread plots when the raw measurements are supplied via chart_ctx.
-    """
-    from ..charts.gage import gage_rr_by_operator, gage_rr_by_part, gage_rr_components
-
-    pct = {
-        "gage_rr": getattr(result, "pct_gage_rr", 0),
-        "repeatability": getattr(result, "pct_repeatability", 0),
-        "reproducibility": getattr(result, "pct_reproducibility", 0),
-        "part_to_part": getattr(result, "pct_part", 0),
-    }
-    charts = [gage_rr_components(pct)]
-
-    if measurements is not None and parts is not None:
-        by_part: dict = {}
-        for m, p in zip(measurements, parts):
-            by_part.setdefault(str(p), []).append(float(m))
-        charts.append(gage_rr_by_part(list(by_part.keys()), by_part))
-
-    if measurements is not None and operators is not None:
-        by_op: dict = {}
-        for m, o in zip(measurements, operators):
-            by_op.setdefault(str(o), []).append(float(m))
-        charts.append(gage_rr_by_operator(list(by_op.keys()), by_op))
-
-    return charts
 
 
 # --- forgestat power builder ---
