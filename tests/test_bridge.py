@@ -167,7 +167,9 @@ class TestCapabilityBridge:
         assert [c.chart_type for c in charts] == ["capability_histogram", "probability_plot"]
 
 
-class TTestResult:
+# A type still routed through _charts_from_distribution (TTestResult/AnovaResult
+# were retired to the §5b contract). Exercises the builder via the data kwargs.
+class RankTestResult:
     pass
 
 
@@ -175,13 +177,13 @@ class TestDistributionBridge:
     def test_two_group_test_adds_per_group_qq(self):
         groups = {"A": [1.0, 2.0, 1.5, 2.2, 1.8, 2.1],
                   "B": [3.0, 3.5, 2.9, 3.2, 3.8, 3.1]}
-        charts = charts_from_result(TTestResult(), groups=groups)
+        charts = charts_from_result(RankTestResult(), groups=groups)
         assert len(charts) == 3  # box plot + one Q-Q per group
         types = [c.chart_type for c in charts]
         assert types.count("qq_plot") == 2
 
     def test_one_sample_adds_qq(self):
-        charts = charts_from_result(TTestResult(), data=[1.0, 2.0, 1.5, 2.2, 1.8, 2.1, 1.9])
+        charts = charts_from_result(RankTestResult(), data=[1.0, 2.0, 1.5, 2.2, 1.8, 2.1, 1.9])
         assert len(charts) == 2  # histogram + Q-Q
         assert any(c.chart_type == "qq_plot" for c in charts)
 
