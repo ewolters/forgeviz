@@ -97,15 +97,6 @@ def charts_from_result(result: Any, **kwargs) -> list:
     if type_name == "CorrelationResult":
         return _charts_from_correlation(**kwargs)
 
-    # Regression-family results that expose residual diagnostics (fitted +
-    # residuals arrays) get the standard 4-in-1 panel — UNLESS they conform to
-    # the engine contract, in which case they self-render below. ARIMAResult
-    # carries fitted+residuals but its portrait is a forecast, not a diagnostic
-    # panel; its contract views() win over this duck-typed heuristic.
-    if (hasattr(result, "fitted") and hasattr(result, "residuals")
-            and not callable(getattr(result, "to_render", None))):
-        return _charts_from_regression(result, **kwargs)
-
     # Contract fallback, tried LAST: a result the bridge doesn't know that
     # speaks the forgecore Result protocol renders its complete portrait —
     # views() when present (multi-chart results), to_render() otherwise.
@@ -297,16 +288,6 @@ def _charts_from_weibull(result, failure_times=None, **kwargs) -> list:
         survival_curve(times),
         hazard_function(shape, scale),
     ]
-
-
-def _charts_from_regression(result, **kwargs) -> list:
-    """Regression result with fitted/residuals → 4-in-1 diagnostic panel."""
-    fitted = getattr(result, "fitted", None)
-    residuals = getattr(result, "residuals", None)
-    if not fitted or not residuals:
-        return []
-    from ..charts.diagnostic import four_in_one
-    return four_in_one(list(fitted), list(residuals))
 
 
 def _charts_from_kaplan_meier(result, failure_times=None, censored=None, **kwargs) -> list:

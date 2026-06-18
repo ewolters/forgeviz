@@ -126,29 +126,19 @@ class TestBayesianBridge:
 
 
 class RegressionResult:
-    def __init__(self, fitted=None, residuals=None):
-        self.fitted = fitted or []
-        self.residuals = residuals or []
-        self.coefficients = {"x1": 1.2}
-        self.r_squared = 0.8
+    """Regression self-renders its 4-in-1 via the contract — the result carries
+    fitted+residuals, so the duck-typed regression builder is gone."""
+
+    def views(self):
+        return [ChartSpec(chart_type=t, title=t) for t in
+                ("scatter", "scatter", "bar", "line")]
 
 
 class TestRegressionBridge:
-    def test_regression_produces_four_in_one(self):
-        r = RegressionResult(
-            fitted=[1.0, 2.0, 3.0, 4.0, 5.0, 6.0],
-            residuals=[0.1, -0.2, 0.05, -0.1, 0.2, -0.05],
-        )
-        charts = charts_from_result(r)
+    def test_regression_self_renders_four_in_one(self):
+        charts = charts_from_result(RegressionResult())
         assert len(charts) == 4
         assert all(isinstance(c, ChartSpec) for c in charts)
-        types = {c.chart_type for c in charts}
-        assert "residual" in types
-        assert "qq_plot" in types
-        assert "residual_order" in types
-
-    def test_regression_without_arrays_yields_no_chart(self):
-        assert charts_from_result(RegressionResult()) == []
 
 
 class ProcessCapability:
