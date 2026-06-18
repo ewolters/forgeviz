@@ -167,27 +167,9 @@ class TestCapabilityBridge:
         assert [c.chart_type for c in charts] == ["capability_histogram", "probability_plot"]
 
 
-class TestDistributionBridge:
-    # Tests the builder function directly: the family of types it serves
-    # (Anova2/PostHoc/Proportion/ChiSquare/...) shrinks as each adopts the §5b
-    # contract, so routing a stub by name is brittle. The builder's own
-    # group=/data= behavior is what's under test here.
-    def test_two_group_test_adds_per_group_qq(self):
-        from forgeviz.core.bridge import _charts_from_distribution
-
-        groups = {"A": [1.0, 2.0, 1.5, 2.2, 1.8, 2.1],
-                  "B": [3.0, 3.5, 2.9, 3.2, 3.8, 3.1]}
-        charts = _charts_from_distribution(groups=groups)
-        assert len(charts) == 3  # box plot + one Q-Q per group
-        types = [c.chart_type for c in charts]
-        assert types.count("qq_plot") == 2
-
-    def test_one_sample_adds_qq(self):
-        from forgeviz.core.bridge import _charts_from_distribution
-
-        charts = _charts_from_distribution(data=[1.0, 2.0, 1.5, 2.2, 1.8, 2.1, 1.9])
-        assert len(charts) == 2  # histogram + Q-Q
-        assert any(c.chart_type == "qq_plot" for c in charts)
+# The distribution builder (_charts_from_distribution) is GONE — the entire
+# forgestat statistical family now carries its own data and self-renders via the
+# contract fallback. That behavior is covered in forgestat/tests/test_contract.py.
 
 
 class GageRRResult:

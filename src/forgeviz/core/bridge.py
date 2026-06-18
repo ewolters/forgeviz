@@ -26,10 +26,12 @@ def charts_from_result(result: Any, **kwargs) -> list:
     Supported types:
     - forgespc.models.ProcessCapability → capability histogram
     - forgespc.bayesian.BayesianCapabilityResult → bayesian capability chart
-    - forgestat group tests (TTest/Anova/RankTest/PostHoc/...) → box plot or
-      histogram, built from `groups=`/`data=` kwargs (result carries no raw data)
-    - forgestat.core.types.CorrelationResult → scatter / scatter matrix from `data_dict=`
     - dict with 'chart_type' key → already a spec, pass through
+    - any forgecore Result protocol conformer → its own views()/to_render()
+
+    The forgestat statistical families (t-test/ANOVA/rank/post-hoc/equivalence/
+    chi-square/proportion/correlation/...) now carry their own data and
+    self-render via the contract fallback — no per-type builder, no data kwargs.
     """
     if result is None:
         return []
@@ -82,15 +84,6 @@ def charts_from_result(result: Any, **kwargs) -> list:
     if type_name == "PowerResult":
         return _charts_from_power(result, **kwargs)
 
-    # --- forgestat types ---
-    # Statistical result objects carry only summary stats, not the raw arrays,
-    # so the chart is built from the data context the caller passes as kwargs
-    # (groups=dict / data=list / data_dict=dict). Returns [] when no usable
-    # context is supplied — the analysis still renders stats + summary.
-
-    if type_name in _DISTRIBUTION_RESULTS:
-        return _charts_from_distribution(**kwargs)
-
     # Contract fallback, tried LAST: a result the bridge doesn't know that
     # speaks the forgecore Result protocol renders its complete portrait —
     # views() when present (multi-chart results), to_render() otherwise.
@@ -108,57 +101,12 @@ def charts_from_result(result: Any, **kwargs) -> list:
     return []
 
 
-# Statistical results whose natural visual is a distribution view — a box plot
-# comparing groups (group/paired tests) or a histogram of one sample
-# (one-sample tests, normality/outlier checks).
-_DISTRIBUTION_RESULTS = {
-    "TestResult",  # base class — some rank tests (kruskal, mood) return it directly
-    "AssumptionCheck",  # pure metadata — no chart
-    # Retired (carry/own their data, self-render via the contract): AnovaResult,
-    # TTestResult, RankTestResult, EquivalenceResult, PostHocResult (box/histogram);
-    # ChiSquareResult (heatmap), ProportionResult (bar), Anova2Result (effects bar).
-}
-
-
 def _as_list(values) -> list:
     """Coerce a numpy array / sequence to a plain list of floats."""
     try:
         return [float(v) for v in values]
     except (TypeError, ValueError):
         return list(values)
-
-
-def _charts_from_distribution(groups=None, data=None, **kwargs) -> list:
-    """Group test → box plot + a normal Q-Q per group; one sample → histogram
-    + a normal Q-Q. The Q-Q plot surfaces the normality assumption these tests
-    rest on. `groups` is {name: sequence}; `data` is a single sequence.
-    """
-    from ..charts.diagnostic import qq_plot
-
-    if groups:
-        datasets = {str(k): _as_list(v) for k, v in groups.items() if len(v)}
-        if len(datasets) >= 2:
-            from ..charts.distribution import box_plot
-            charts = [box_plot(datasets, title=kwargs.get("title", "Group Comparison"))]
-            for name, vals in datasets.items():
-                if len(vals) >= 3:
-                    charts.append(qq_plot(vals, title=f"Normal Q-Q — {name}"))
-            return charts
-        if len(datasets) == 1:
-            data = next(iter(datasets.values()))
-    if data is not None:
-        vals = _as_list(data)
-        if vals:
-            from ..charts.distribution import histogram
-            charts = [histogram(
-                vals, title=kwargs.get("title", "Distribution"),
-                target=kwargs.get("target"),
-                show_normal=kwargs.get("show_normal", False),
-            )]
-            if len(vals) >= 3:
-                charts.append(qq_plot(vals, title="Normal Q-Q Plot"))
-            return charts
-    return []
 
 
 def _charts_from_bayesian_capability(result, **kwargs) -> list:
