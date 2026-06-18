@@ -60,16 +60,10 @@ def charts_from_result(result: Any, **kwargs) -> list:
     if type_name == "GageRRResult":
         return _charts_from_gage_rr(result, **kwargs)
 
-    # --- forgestat reliability types ---
-    # WeibullFit (carries failure_times, §5b) + KaplanMeierResult (carries its
-    # computed curve) self-render via the contract fallback. BayesianTestResult
-    # stays — it has no contract render yet.
-
-    if type_name == "BayesianTestResult":
-        return _charts_from_bayesian_test(result, **kwargs)
-
-    # forgeml MLResult self-renders via the contract fallback (carries its raw
-    # points X for the cluster scatter, §5b) — no builder.
+    # forgestat reliability (WeibullFit/KaplanMeierResult), bayesian
+    # (BayesianTestResult posterior density), and forgeml MLResult all
+    # self-render via the contract fallback below — they carry their own data
+    # (§5b). No builders, no dispatch arms.
 
     # --- forgestat timeseries types ---
     # The whole timeseries family (ACF/CCF/decomposition/ARIMA/Granger/
@@ -115,24 +109,6 @@ def _charts_from_bayesian_capability(result, **kwargs) -> list:
     except Exception:
         logger.debug("Bayesian capability chart failed", exc_info=True)
         return []
-
-
-def _charts_from_bayesian_test(result, **kwargs) -> list:
-    """BayesianTestResult → Normal-approximation posterior density.
-
-    The result is summary-only (no draws); a density needs both posterior
-    moments. Mean-only results (η²/R²) have nothing to plot, so return [].
-    """
-    mean = getattr(result, "posterior_mean", None)
-    std = getattr(result, "posterior_std", None)
-    if mean is None or not std or std <= 0:
-        return []
-    from ..charts.bayesian import posterior_density
-    return [posterior_density(
-        mean, std,
-        credible_interval=getattr(result, "credible_interval", None),
-        p_rope=getattr(result, "p_rope", None),
-    )]
 
 
 def _charts_from_gage_rr(result, measurements=None, parts=None, operators=None, **kwargs) -> list:

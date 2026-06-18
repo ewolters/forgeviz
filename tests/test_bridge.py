@@ -71,29 +71,9 @@ class TestWeibullBridge:
         assert charts[0].chart_type == "line"
 
 
-class BayesianTestResult:
-    def __init__(self, posterior_mean=None, posterior_std=None,
-                 credible_interval=None, p_rope=None):
-        self.test_name = "bayes"
-        self.posterior_mean = posterior_mean
-        self.posterior_std = posterior_std
-        self.credible_interval = credible_interval
-        self.p_rope = p_rope
-
-
-class TestBayesianBridge:
-    def test_posterior_with_moments_produces_density(self):
-        r = BayesianTestResult(posterior_mean=1.5, posterior_std=0.4,
-                               credible_interval=(0.7, 2.3), p_rope=0.05)
-        charts = charts_from_result(r)
-        assert len(charts) == 1
-        assert isinstance(charts[0], ChartSpec)
-        assert charts[0].chart_type == "posterior_density"
-
-    def test_posterior_without_std_yields_no_chart(self):
-        # eta-squared / R² results carry a mean but no posterior std
-        r = BayesianTestResult(posterior_mean=0.42)
-        assert charts_from_result(r) == []
+# The _charts_from_bayesian_test builder is GONE — forgestat's BayesianTestResult
+# self-renders its posterior density (field-only) via the contract fallback.
+# Covered in forgestat/tests/test_contract.py.
 
 
 class RegressionResult:
