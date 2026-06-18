@@ -78,26 +78,35 @@ class TestMLBridge:
 
 
 class WeibullFit:
-    def __init__(self):
+    """Weibull self-renders via the contract — it carries failure_times (§5b),
+    so with a sample it draws prob-plot + survival + hazard, hazard-only without."""
+
+    def __init__(self, failure_times=None):
         self.shape = 2.0
         self.scale = 100.0
-        self.location = 0.0
-        self.failure_mode = "wear_out"
+        self.failure_times = failure_times or []
+
+    def to_render(self):
+        return ChartSpec(chart_type="line", title="Hazard Function")
+
+    def views(self):
+        if self.failure_times:
+            return [ChartSpec(chart_type="scatter", title="Weibull Probability Plot"),
+                    ChartSpec(chart_type="line", title="Survival Curve"),
+                    ChartSpec(chart_type="line", title="Hazard Function")]
+        return [self.to_render()]
 
 
 class TestWeibullBridge:
-    def test_weibull_with_failure_times_produces_panel(self):
-        charts = charts_from_result(
-            WeibullFit(), failure_times=[10, 20, 35, 50, 70, 90, 120]
-        )
+    def test_weibull_with_sample_self_renders_panel(self):
+        charts = charts_from_result(WeibullFit(failure_times=[10, 20, 35, 50, 70, 90, 120]))
         assert len(charts) == 3
         assert all(isinstance(c, ChartSpec) for c in charts)
-        assert {c.chart_type for c in charts} == {"weibull_prob", "survival", "hazard"}
 
-    def test_weibull_without_failure_times_falls_back_to_hazard(self):
+    def test_weibull_without_sample_falls_back_to_hazard(self):
         charts = charts_from_result(WeibullFit())
         assert len(charts) == 1
-        assert charts[0].chart_type == "hazard"
+        assert charts[0].chart_type == "line"
 
 
 class BayesianTestResult:
@@ -203,24 +212,21 @@ class TestGageRRBridge:
 
 
 class KaplanMeierResult:
-    def __init__(self):
-        self.median_survival = 50.0
-        self.mean_survival = 55.0
-        self.n_censored = 2
+    """KM self-renders via the contract — it already carries its computed
+    survival curve, so the bridge forwards no failure_times= and has no builder."""
+
+    def to_render(self):
+        return ChartSpec(chart_type="line", title="Survival Curve")
+
+    def views(self):
+        return [self.to_render()]
 
 
 class TestKaplanMeierBridge:
-    def test_km_with_times_produces_survival_curve(self):
-        charts = charts_from_result(
-            KaplanMeierResult(),
-            failure_times=[5, 10, 15, 20, 25, 30, 40, 50],
-            censored=[False, False, False, True, False, False, True, False],
-        )
+    def test_km_self_renders_survival_curve(self):
+        charts = charts_from_result(KaplanMeierResult())
         assert len(charts) == 1
-        assert charts[0].chart_type == "survival"
-
-    def test_km_without_times_yields_no_chart(self):
-        assert charts_from_result(KaplanMeierResult()) == []
+        assert charts[0].chart_type == "line"
 
 
 class TestUnknownResult:

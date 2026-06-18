@@ -59,15 +59,12 @@ def charts_from_result(result: Any, **kwargs) -> list:
         return _charts_from_gage_rr(result, **kwargs)
 
     # --- forgestat reliability types ---
-
-    if type_name == "WeibullFit":
-        return _charts_from_weibull(result, **kwargs)
+    # WeibullFit (carries failure_times, §5b) + KaplanMeierResult (carries its
+    # computed curve) self-render via the contract fallback. BayesianTestResult
+    # stays — it has no contract render yet.
 
     if type_name == "BayesianTestResult":
         return _charts_from_bayesian_test(result, **kwargs)
-
-    if type_name == "KaplanMeierResult":
-        return _charts_from_kaplan_meier(result, **kwargs)
 
     # --- forgeml types ---
 
@@ -245,37 +242,6 @@ def _charts_from_cluster(result, stats, X) -> list:
             title="Cluster Sizes", x_label="Cluster", y_label="Count",
         ))
     return charts
-
-
-def _charts_from_weibull(result, failure_times=None, **kwargs) -> list:
-    """WeibullFit → probability plot + survival curve + hazard function.
-
-    The fit carries only parameters (shape/scale); the raw failure_times come
-    from the caller's chart_ctx. With the times we draw the full panel; with
-    parameters alone we can still show the hazard (bathtub) curve.
-    """
-    from ..charts.reliability import hazard_function, survival_curve, weibull_probability_plot
-    shape = getattr(result, "shape", 0.0)
-    scale = getattr(result, "scale", 0.0)
-    if not failure_times:
-        if shape and scale:
-            return [hazard_function(shape, scale)]
-        return []
-    times = list(failure_times)
-    return [
-        weibull_probability_plot(times, shape=shape, scale=scale),
-        survival_curve(times),
-        hazard_function(shape, scale),
-    ]
-
-
-def _charts_from_kaplan_meier(result, failure_times=None, censored=None, **kwargs) -> list:
-    """KaplanMeierResult → Kaplan-Meier survival curve from the raw times the
-    handler forwards via chart_ctx (events marked censored)."""
-    if not failure_times:
-        return []
-    from ..charts.reliability import survival_curve
-    return [survival_curve(list(failure_times), censored=censored)]
 
 
 def _charts_from_bayesian_test(result, **kwargs) -> list:
