@@ -94,9 +94,6 @@ def charts_from_result(result: Any, **kwargs) -> list:
     if type_name in _DISTRIBUTION_RESULTS:
         return _charts_from_distribution(**kwargs)
 
-    if type_name == "CorrelationResult":
-        return _charts_from_correlation(**kwargs)
-
     # Contract fallback, tried LAST: a result the bridge doesn't know that
     # speaks the forgecore Result protocol renders its complete portrait —
     # views() when present (multi-chart results), to_render() otherwise.
@@ -163,24 +160,6 @@ def _charts_from_distribution(groups=None, data=None, **kwargs) -> list:
             if len(vals) >= 3:
                 charts.append(qq_plot(vals, title="Normal Q-Q Plot"))
             return charts
-    return []
-
-
-def _charts_from_correlation(data_dict=None, **kwargs) -> list:
-    """Correlation → scatter (2 variables) or scatter matrix (>2 variables)."""
-    if not data_dict:
-        return []
-    cols = [c for c in data_dict if data_dict[c]]
-    if len(cols) == 2:
-        from ..charts.scatter import scatter
-        return [scatter(
-            _as_list(data_dict[cols[0]]), _as_list(data_dict[cols[1]]),
-            title=f"{cols[0]} vs {cols[1]}",
-            x_label=cols[0], y_label=cols[1], show_regression=True,
-        )]
-    if len(cols) > 2:
-        from ..charts.statistical import scatter_matrix
-        return scatter_matrix({c: _as_list(data_dict[c]) for c in cols})
     return []
 
 
