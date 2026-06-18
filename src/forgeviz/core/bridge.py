@@ -68,10 +68,8 @@ def charts_from_result(result: Any, **kwargs) -> list:
     if type_name == "BayesianTestResult":
         return _charts_from_bayesian_test(result, **kwargs)
 
-    # --- forgeml types ---
-
-    if type_name == "MLResult":
-        return _charts_from_ml(result, **kwargs)
+    # forgeml MLResult self-renders via the contract fallback (carries its raw
+    # points X for the cluster scatter, §5b) — no builder.
 
     # --- forgestat timeseries types ---
     # The whole timeseries family (ACF/CCF/decomposition/ARIMA/Granger/
@@ -117,80 +115,6 @@ def _charts_from_bayesian_capability(result, **kwargs) -> list:
     except Exception:
         logger.debug("Bayesian capability chart failed", exc_info=True)
         return []
-
-
-def _charts_from_ml(result, X=None, **kwargs) -> list:
-    """MLResult → charts by algorithm.
-
-    Feature-importance models → importance bar; PCA → scree + PC1 loadings;
-    clustering → 2-D cluster scatter (needs the raw points X via chart_ctx) plus
-    a cluster-size bar. Returns [] for ML results with nothing plottable.
-    """
-    from ..charts.generic import bar
-    fi = getattr(result, "feature_importance", None)
-    if fi:
-        items = sorted(fi.items(), key=lambda kv: kv[1], reverse=True)
-        return [bar(
-            [str(k) for k, _ in items],
-            [float(v) for _, v in items],
-            title="Feature Importance",
-            horizontal=True,
-        )]
-
-    stats = getattr(result, "statistics", {}) or {}
-    if getattr(result, "algorithm", "") == "pca":
-        return _charts_from_pca(stats)
-    if "cluster_sizes" in stats:
-        return _charts_from_cluster(result, stats, X)
-    return []
-
-
-def _charts_from_pca(stats) -> list:
-    """PCA statistics → scree plot + PC1 loadings bar."""
-    from ..charts.generic import bar
-    charts = []
-    evr = stats.get("explained_variance_ratio") or []
-    if evr:
-        charts.append(bar(
-            [f"PC{i + 1}" for i in range(len(evr))],
-            [float(v) for v in evr],
-            title="Scree Plot — Explained Variance",
-            x_label="Component", y_label="Variance Ratio",
-        ))
-    pc1 = (stats.get("loadings") or {}).get("PC1") or {}
-    if pc1:
-        charts.append(bar(
-            list(pc1.keys()),
-            [float(v) for v in pc1.values()],
-            title="PC1 Loadings", x_label="Feature", y_label="Loading",
-            horizontal=True,
-        ))
-    return charts
-
-
-def _charts_from_cluster(result, stats, X) -> list:
-    """Clustering result → 2-D scatter coloured by label + cluster-size bar."""
-    from ..charts.generic import bar
-    from ..charts.scatter import scatter
-    charts = []
-    labels = getattr(result, "predictions", []) or []
-    if X is not None and labels and len(X) == len(labels):
-        xs = [float(row[0]) for row in X]
-        ys = [float(row[1]) if len(row) > 1 else 0.0 for row in X]
-        groups: dict = {}
-        for i, lab in enumerate(labels):
-            groups.setdefault(f"Cluster {lab}", []).append(i)
-        charts.append(scatter(
-            xs, ys, title="Cluster Assignments",
-            x_label="Feature 1", y_label="Feature 2", groups=groups,
-        ))
-    sizes = stats.get("cluster_sizes") or {}
-    if sizes:
-        charts.append(bar(
-            list(sizes.keys()), [float(v) for v in sizes.values()],
-            title="Cluster Sizes", x_label="Cluster", y_label="Count",
-        ))
-    return charts
 
 
 def _charts_from_bayesian_test(result, **kwargs) -> list:

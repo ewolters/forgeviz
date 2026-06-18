@@ -22,14 +22,6 @@ class EWMAResult:
         return ChartSpec(chart_type="control_chart", subtitle="EWMA")
 
 
-class MLResult:
-    def __init__(self, feature_importance=None, algorithm="", statistics=None, predictions=None):
-        self.feature_importance = feature_importance or {}
-        self.algorithm = algorithm
-        self.statistics = statistics or {}
-        self.predictions = predictions or []
-
-
 class TestAdvancedSPCBridge:
     def test_cusum_self_renders_via_contract_fallback(self):
         charts = charts_from_result(CUSUMResult())
@@ -42,39 +34,9 @@ class TestAdvancedSPCBridge:
         assert charts[0].subtitle == "EWMA"
 
 
-class TestMLBridge:
-    def test_feature_importance_produces_bar(self):
-        charts = charts_from_result(MLResult({"f1": 0.6, "f2": 0.3, "f3": 0.1}))
-        assert len(charts) == 1
-        assert isinstance(charts[0], ChartSpec)
-
-    def test_no_feature_importance_yields_no_chart(self):
-        assert charts_from_result(MLResult({})) == []
-
-    def test_pca_produces_scree_and_loadings(self):
-        r = MLResult(algorithm="pca", statistics={
-            "explained_variance_ratio": [0.6, 0.25, 0.15],
-            "loadings": {"PC1": {"a": 0.7, "b": 0.5, "c": 0.1}},
-        })
-        charts = charts_from_result(r)
-        assert len(charts) == 2
-        assert all(isinstance(c, ChartSpec) for c in charts)
-
-    def test_cluster_with_coords_produces_scatter_and_sizes(self):
-        r = MLResult(algorithm="kmeans",
-                     statistics={"cluster_sizes": {"cluster_0": 3, "cluster_1": 2}},
-                     predictions=[0, 1, 0, 1, 0])
-        X = [[1, 2], [8, 9], [1.5, 2.5], [8.5, 9.5], [1, 2.2]]
-        charts = charts_from_result(r, X=X)
-        assert len(charts) == 2
-        assert all(isinstance(c, ChartSpec) for c in charts)
-
-    def test_cluster_without_coords_falls_back_to_size_bar(self):
-        r = MLResult(algorithm="kmeans",
-                     statistics={"cluster_sizes": {"cluster_0": 3, "cluster_1": 2}},
-                     predictions=[0, 1, 0])
-        charts = charts_from_result(r)
-        assert len(charts) == 1
+# The ML builders (_charts_from_ml/_pca/_cluster) are GONE — forgeml's MLResult
+# carries its raw points (§5b) and self-renders via the contract fallback. That
+# behavior is covered in forgeml/tests/test_contract.py.
 
 
 class WeibullFit:
