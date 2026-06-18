@@ -113,11 +113,10 @@ def charts_from_result(result: Any, **kwargs) -> list:
 # (one-sample tests, normality/outlier checks).
 _DISTRIBUTION_RESULTS = {
     "TestResult",  # base class — some rank tests (kruskal, mood) return it directly
-    "Anova2Result",
-    "ProportionResult", "ChiSquareResult",
-    "AssumptionCheck",
-    # Retired (§5b — carry raw samples, self-render box/histogram via the contract):
-    # AnovaResult, TTestResult, RankTestResult, EquivalenceResult, PostHocResult.
+    "AssumptionCheck",  # pure metadata — no chart
+    # Retired (carry/own their data, self-render via the contract): AnovaResult,
+    # TTestResult, RankTestResult, EquivalenceResult, PostHocResult (box/histogram);
+    # ChiSquareResult (heatmap), ProportionResult (bar), Anova2Result (effects bar).
 }
 
 
